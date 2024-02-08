@@ -46,13 +46,14 @@ temp_message: 	  db 'Temp=           ', 0
 
 TOGGLE			  equ P
 cseg
-; These 'equ' must match the hardware wiring
+; /* PORT SETTINGS */
 LCD_RS equ P1.3
 LCD_E  equ P1.4
 LCD_D4 equ P0.0
 LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
+OPAMP  equ P0.4
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -68,6 +69,7 @@ temp: 		  ds 2
 Count1ms:     ds 2 ; Used to determine when half second has passed
 BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
 clkup:		  ds 1
+net_temp	  ds 3 ; Temp Reading after Thermocouple subtract LM335
 
 BSEG
 mf: dbit 1
