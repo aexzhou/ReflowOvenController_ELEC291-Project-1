@@ -28,6 +28,7 @@ TIMER0_RATE       EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 s
 TIMER0_RELOAD 	  EQU ((65536-(CLK/TIMER0_RATE)))
 TIMER2_RATE   	  EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD 	  EQU ((65536-(CLK/TIMER2_RATE)))
+; bruh
 
 ORG 0x0000
 	ljmp main
