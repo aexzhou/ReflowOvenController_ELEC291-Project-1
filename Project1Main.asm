@@ -18,7 +18,7 @@ $LIST
 ;                         VDD -|9    12|- P1.3/SCL/[STADC]
 ;            PWM5/IC7/SS/P1.5 -|10   11|- P1.4/SDA/FB/PWM1
 ;                               -------
-; bob test
+;
 
 CLK               EQU 16600000 ; Microcontroller system frequency in Hz
 BAUD              EQU 115200 ; Baud rate of UART in bps
@@ -28,7 +28,6 @@ TIMER0_RATE       EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 s
 TIMER0_RELOAD 	  EQU ((65536-(CLK/TIMER0_RATE)))
 TIMER2_RATE   	  EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD 	  EQU ((65536-(CLK/TIMER2_RATE)))
-; bruh
 
 ORG 0x0000
 	ljmp main
@@ -68,6 +67,7 @@ VLED_ADC: 	  ds 2
 temp: 		  ds 2
 Count1ms:     ds 2 ; Used to determine when half second has passed
 BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
+clkup:		  ds 1
 
 BSEG
 mf: dbit 1
@@ -305,10 +305,10 @@ Inc_Done:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Increment the BCD counter
-	mov a, BCD_counter
-	add a, #0x01
-	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov BCD_counter, a
+	;mov a, BCD_counter
+	;add a, #0x01
+	;da a ; Decimal adjust instruction.  Check datasheet for more details!
+	;mov BCD_counter, a
 	
 Timer2_ISR_done:
 	pop psw
@@ -323,6 +323,7 @@ main:
     lcall Timer2_Init
     setb EA
     mov BCD_counter, #0x00
+    mov clkup, #0x00
     
     ; initial messages in LCD
 	Set_Cursor(1, 1)
@@ -367,19 +368,35 @@ Forever:
 	lcall mul32
 	Load_y(2730000)
 	lcall sub32
+	
+	mov a, clkup
+	cjne a, #0x00, skipclk
+	add a, #0x01
+	mov clkup, a
+	
+	mov a, BCD_counter
+	add a, #0x01
+	da a ; Decimal adjust instruction.  Check datasheet for more details!
+	mov BCD_counter, a
+	ljmp clkdown
 
+skipclk:
+	clr a
+	mov clkup, a
+clkdown:
 	; Convert to BCD and display
 	lcall hex2bcd
 	lcall Display_formated_BCD
-	;lcall Send_formated_BCD
 	Set_Cursor(1,13)
 	Display_BCD(BCD_Counter)
 	
 	; Wait 500 ms between conversions
-	;mov R2, #250
-	;lcall waitms
-	;mov R2, #250
-	;lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	
+	
 	
 	mov DPTR, #Newline
 	lcall SendString
