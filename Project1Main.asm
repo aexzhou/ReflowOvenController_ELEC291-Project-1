@@ -69,7 +69,7 @@ temp: 		  ds 2
 Count1ms:     ds 2 ; Used to determine when half second has passed
 BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
 clkup:		  ds 1
-net_temp	  ds 3 ; Temp Reading after Thermocouple subtract LM335
+net_temp:	  ds 3 ; Temp Reading after Thermocouple subtract LM335
 
 BSEG
 mf: dbit 1
@@ -296,10 +296,10 @@ Timer2_ISR:
 
 Inc_Done:
 	; Check if half second has passed
-	mov a, Count1ms+0
-	cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
-	mov a, Count1ms+1
-	cjne a, #high(1000), Timer2_ISR_done
+	;mov a, Count1ms+0
+	;cjne a, #low(1000), Timer2_ISR_done ; Warning: this instruction changes the carry flag!
+	;mov a, Count1ms+1
+	;cjne a, #high(1000), Timer2_ISR_done
 	
 	; 500 milliseconds have passed.  Set a flag so the main program knows
 	setb half_seconds_flag ; Let the main program know half second had passed
@@ -405,12 +405,6 @@ clkdown:
 	
 	ljmp Forever
 
-Send_formated_BCD:
-	Send_BCD(bcd)
-	Send_BCD(bcd+1)
-	Send_BCD(bcd+2)
-	Send_BCD(bcd+3)
-	ret
 	
 END
 	
