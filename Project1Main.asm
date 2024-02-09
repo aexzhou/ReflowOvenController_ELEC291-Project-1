@@ -31,7 +31,7 @@ cel_message:	  db 'CELCIUS  READING',0
 fah_message:      db 'FARENHET READING',0
 CSEG
 
-; /* LCD HARDWIRING */
+; /* PORT DEFINITIONS */
 LCD_RS equ P1.3
 LCD_E  equ P1.4
 LCD_D4 equ P0.0
@@ -39,22 +39,24 @@ LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
 UNIT   equ P1.5
+OPAMP  equ P1.4			; Port 20 
+
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
 ; /* MATH.INC STUFFS */
 DSEG at 30H
-x:   ds 4
-y:   ds 4
-z:   ds 1
+x:   		ds 4
+y:   		ds 4
+data_out:   ds 1
 
-bcd: ds 5
+bcd: 		ds 5
+temp_out: 	ds 4
 
-
-VLED_ADC: ds 2
-dtemp:  ds 2
-temp1: ds 1
+VLED_ADC: 	ds 2
+dtemp:  	ds 2
+temp1: 		ds 1
 
 BSEG
 mf: dbit 1
@@ -145,25 +147,23 @@ SendString:
 SendStringDone:
     ret
 
-SendBin:
+; Sends binary data to Python via putchar
+SendBin:					
+	clr A					; Sends temp_out
+	mov a, temp_out+0
+	lcall putchar
 	clr A
-	mov a, x+0
+	mov a, temp_out+1
+	lcall putchar
+	clr A
+	mov a, temp_out+2
+	lcall putchar
+	clr A
+	mov a, temp_out+3
 	lcall putchar
 
-	clr A
-	mov a, x+1
-	lcall putchar
-
-	clr A
-	mov a, x+2
-	lcall putchar
-
-	clr A
-	mov a, x+3
-	lcall putchar
-
-	clr A
-	mov a, z
+	clr A					; Sends data_out
+	mov a, data_out 
 	lcall putchar
 	ret
 
@@ -270,7 +270,7 @@ Main:
     Send_Constant_String(#value_message)
 	setb cel
 
-	mov z, #0b00000001
+	mov data_out, #0b00000001
 
 Forever: ;avaliable: r2, r3
 
@@ -281,10 +281,10 @@ button:
 	jnb UNIT, $		; Wait for button release.  The '$' means: jump to same instruction.
 	cpl cel
 	jb cel, celyes
-	mov z, #0b00000010
+	mov data_out, #0b00000010
 	sjmp button_skip
 celyes:
-	mov z, #0b00000001
+	mov data_out, #0b00000001
 button_skip:
 
 
@@ -347,22 +347,25 @@ Fah:
 	lcall add32
 	
 	
-	lcall hex2bcd ; Convert to BCD and display
+	lcall hex2bcd 				; Convert to BCD and display
 	lcall Display_formated_BCD_F
-    lcall bcd2hex ;hex number now stored in x
+    lcall bcd2hex 				; Temperature Number now stored in x
 
 	ljmp Export	
 
-Export:	
-	mov R2, #250 ; Wait 500 ms between conversions
+Export:							; Data export to python
+	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms
 
-	;mov dptr, #x
-    lcall SendBin
-	;mov dptr, #New_Line
-	;lcall SendString
+	mov temp_out+0, x+0			; Store Computed temperture results 
+	mov temp_out+1, x+1			; from x(4) to temp_out (4)
+	mov temp_out+2, x+2
+	mov temp_out+3, x+3
+
+    lcall SendBin				; Sends 5 Bytes to python, temp_out(4) + data_out(1)	
+	
     ljmp Forever
 
 END
