@@ -210,30 +210,6 @@ Display_formated_BCD: ;4 dig
 
 	ret
 
-Display_formated_BCD_F: ;4 dig 
-	Set_Cursor(1, 1)
-    Send_Constant_String(#fah_message)
-	Set_Cursor(2, 7)
-	Display_BCD(bcd+2)
-	Set_Cursor(2, 9)
-	Display_BCD(bcd+1)
-	Set_Cursor(2, 10)
-	Display_BCD(bcd+1)
-	
-	Set_Cursor(2, 12)
-	Display_BCD(bcd+0)
-	Set_Cursor(2, 10)
-	Display_char(#'.')
-	Set_Cursor(2, 7)
-	;Display_char(#0x20)
-	Set_Cursor(2, 15)
-	Display_char(#0xDF)
-	Set_Cursor(2, 16)
-	Display_char(#'F')
-
-	ret
-
-
 ; /* READ ADC */
 Read_ADC:
 	clr ADCF
@@ -283,9 +259,6 @@ Forever: ;avaliable: r2, r3
 	anl ADCCON0, #0xF0 ; Read the signal connected to AIN7
 	orl ADCCON0, #0x07 ; Select channel 7
 	lcall Read_ADC
-
-	jb cel, Celcius
-	ljmp Fah
 
 Celcius: 
 	mov x+0, R0 			; x <- adc(ch) 
