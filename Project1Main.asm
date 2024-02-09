@@ -55,7 +55,6 @@ bcd: ds 5
 VLED_ADC: ds 2
 dtemp:  ds 2
 temp1: ds 1
-BCD_counter: ds 1
 
 BSEG
 mf: dbit 1
@@ -67,11 +66,12 @@ $LIST
 
 
 
-
-
 ; /* Configure the serial port and baud rate */
-InitSerialPort:
-	mov	P3M1,#0x00  ; Configure all the pins for biderectional I/O
+
+InitAll:
+	; /*** SERIAL PORT INITIALIZATION ***/
+
+	mov	P3M1,#0x00  			; Configure all the pins for biderectional I/O
 	mov	P3M2,#0x00
 	mov	P1M1,#0x00
 	mov	P1M2,#0x00
@@ -81,19 +81,49 @@ InitSerialPort:
     ; sending messages, otherwise we risk displaying gibberish!
     ;mov R1, #200
     ;mov R0, #104
-    ;djnz R0, $   ; 4 cycles->4*60.285ns*104=25us
-    ;djnz R1, $-4 ; 25us*200=5.0ms
+    ;djnz R0, $   				; 4 cycles->4*60.285ns*104=25us
+    ;djnz R1, $-4 				; 25us*200=5.0ms
     mov R2, #5
     lcall waitms
     ; Now we can proceed with the configuration of the serial port
-	orl	CKCON, #0x10 ; CLK is the input for timer 1
-	orl	PCON, #0x80 ; Bit SMOD=1, double baud rate
+	orl	CKCON, #0x10 			; CLK is the input for timer 1
+	orl	PCON, #0x80 			; Bit SMOD=1, double baud rate
 	mov	SCON, #0x52
 	anl	T3CON, #0b11011111
-	anl	TMOD, #0x0F ; Clear the configuration bits for timer 1
-	orl	TMOD, #0x20 ; Timer 1 Mode 2
+	anl	TMOD, #0x0F			 	; Clear the configuration bits for timer 1
+	orl	TMOD, #0x20 			; Timer 1 Mode 2
 	mov	TH1, #TIMER1_RELOAD
 	setb TR1
+
+	; /*** INITIALIZE THE REST ***/
+
+	orl	CKCON, #0x10 			; CLK is the input for timer 1
+	orl	PCON, #0x80 			; Bit SMOD=1, double baud rate
+	mov	SCON, #0x52
+	anl	T3CON, #0b11011111
+	anl	TMOD, #0x0F 			; Clear the configuration bits for timer 1
+	orl	TMOD, #0x20 			; Timer 1 Mode 2
+	mov	TH1, #TIMER1_RELOAD 	; TH1=TIMER1_RELOAD;
+	setb TR1
+	
+	; Using timer 0 for delay functions.  Initialize here:
+	clr	TR0 					; Stop timer 0
+	orl	CKCON,#0x08 			; CLK is the input for timer 0
+	anl	TMOD,#0xF0				; Clear the configuration bits for timer 0
+	orl	TMOD,#0x01 				; Timer 0 in Mode 1: 16-bit timer
+	
+	; Initialize the pin used by the ADC (P1.1) as input.
+	orl	P1M1, #0b00000010
+	anl	P1M2, #0b11111101
+	
+	; Initialize and start the ADC:
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x07 			; Select channel 7
+	; AINDIDS select if some pins are analog inputs or digital I/O:
+	mov AINDIDS, #0x00 			; Disable all analog inputs
+	orl AINDIDS, #0b10000000 	; P1.1 is analog input
+	orl ADCCON1, #0x01 			; Enable ADC
+
     ret
 
 ; /* Send a character using the serial port */
@@ -144,38 +174,6 @@ Hello_World:
     DB  'Hello, World!', '\r', '\n', 0
 New_Line:
 	DB '\r', '\n', 0
-
-Init_Rest:
-	orl	CKCON, #0x10 ; CLK is the input for timer 1
-	orl	PCON, #0x80 ; Bit SMOD=1, double baud rate
-	mov	SCON, #0x52
-	anl	T3CON, #0b11011111
-	anl	TMOD, #0x0F ; Clear the configuration bits for timer 1
-	orl	TMOD, #0x20 ; Timer 1 Mode 2
-	mov	TH1, #TIMER1_RELOAD ; TH1=TIMER1_RELOAD;
-	setb TR1
-	
-	; Using timer 0 for delay functions.  Initialize here:
-	clr	TR0 ; Stop timer 0
-	orl	CKCON,#0x08 ; CLK is the input for timer 0
-	anl	TMOD,#0xF0 ; Clear the configuration bits for timer 0
-	orl	TMOD,#0x01 ; Timer 0 in Mode 1: 16-bit timer
-	
-	; Initialize the pin used by the ADC (P1.1) as input.
-	orl	P1M1, #0b00000010
-	anl	P1M2, #0b11111101
-	
-	; Initialize and start the ADC:
-	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x07 ; Select channel 7
-	; AINDIDS select if some pins are analog inputs or digital I/O:
-	mov AINDIDS, #0x00 ; Disable all analog inputs
-	orl AINDIDS, #0b10000000 ; P1.1 is analog input
-	orl ADCCON1, #0x01 ; Enable ADC
-
-	
-	
-	ret
 
 ; /* 1ms DELAY FUNCTIONS */
 wait_1ms:
@@ -262,8 +260,7 @@ Read_ADC:
 Main:
     mov SP, #0x7F ; Set the stack pointer to the begining of idata
     
-    lcall InitSerialPort
-    lcall Init_Rest
+    lcall InitAll
     lcall LCD_4BIT
 
     ; initial messages in LCD
@@ -321,9 +318,9 @@ Celcius:
 	Load_y(273150)			; y <- (2.7315 * 1000) * 100
 	lcall sub32	
 
-	lcall hex2bcd ; Convert to BCD and display
+	lcall hex2bcd 			; Convert to BCD and display
 	lcall Display_formated_BCD
-    lcall bcd2hex ;hex number now stored in x
+    lcall bcd2hex 			;hex number now stored in x
 
 	ljmp Export	 		
 
