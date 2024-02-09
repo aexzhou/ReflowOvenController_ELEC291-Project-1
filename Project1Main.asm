@@ -55,6 +55,7 @@ bcd: ds 5
 VLED_ADC: ds 2
 dtemp:  ds 2
 temp1: ds 1
+BCD_counter: ds 1
 
 BSEG
 mf: dbit 1
@@ -63,6 +64,8 @@ cel: dbit 1
 $NOLIST
 $include(math32.inc)
 $LIST
+
+
 
 
 
