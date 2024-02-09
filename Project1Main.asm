@@ -38,7 +38,6 @@ LCD_D4 equ P0.0
 LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
-UNIT   equ P1.5
 OPAMP  equ P1.4			; Port 20 
 
 $NOLIST
@@ -60,7 +59,6 @@ temp1: 		ds 1
 
 BSEG
 mf: dbit 1
-cel: dbit 1
 
 $NOLIST
 $include(math32.inc)
@@ -274,20 +272,6 @@ Main:
 
 Forever: ;avaliable: r2, r3
 
-button:
-	jb UNIT, button_skip ; if the 'CLEAR' button is not pressed skip
-	Wait_Milli_Seconds(#50)	; Debounce delay.  This macro is also in 'LCD_4bit.inc'
-	jb UNIT, button_skip  ; if the 'CLEAR' button is not pressed skip
-	jnb UNIT, $		; Wait for button release.  The '$' means: jump to same instruction.
-	cpl cel
-	jb cel, celyes
-	mov data_out, #0b00000010
-	sjmp button_skip
-celyes:
-	mov data_out, #0b00000001
-button_skip:
-
-
 	; /* CALIBRATE */ 
 	anl ADCCON0, #0xF0 ; Read the 2.08V LED voltage connected to AIN0 on pin 6
 	orl ADCCON0, #0x00 ; Select channel 0
@@ -322,36 +306,7 @@ Celcius:
 	lcall Display_formated_BCD
     lcall bcd2hex 			;hex number now stored in x
 
-	ljmp Export	 		
-
-Fah:
-	mov x+0, R0 			; x <- adc(ch) 
-	mov x+1, R1
-	mov x+2, #0 			; pad w/0
-	mov x+3, #0
-	Load_y(207000) 			; y <- (x.xxx (vled) * 1000) * 100
-	lcall mul32					
-    mov y+0, VLED_ADC+0 	; y <- adc(led)
-	mov y+1, VLED_ADC+1
-	mov y+2, #0 			
-	mov y+3, #0 
-	lcall div32				; x <- adc(ch) * vled * 100 / adc(led)
-	Load_y(273150)			; y <- (2.7315 * 1000) * 100
-	lcall sub32
-
-	Load_y(9)
-	lcall mul32
-	Load_y(5)
-	lcall div32	
-	Load_y(32000)
-	lcall add32
-	
-	
-	lcall hex2bcd 				; Convert to BCD and display
-	lcall Display_formated_BCD_F
-    lcall bcd2hex 				; Temperature Number now stored in x
-
-	ljmp Export	
+	ljmp Export	 			
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
