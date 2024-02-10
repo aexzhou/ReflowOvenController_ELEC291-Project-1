@@ -73,7 +73,8 @@ FSM1_state:  ds 1
 ; /* TIME CHECK AND PWM */
 pwm_counter:	ds 1
 count10ms: 		ds 1
-sec: 			ds 1
+seconds: 		ds 1
+sec:			ds 1
 pwm:			ds 1
 
 
@@ -423,11 +424,11 @@ FSM1_state2_done:
 	ljmp FSM_sys
 
 FSM1_state3:
-	cjne a, #3, FSM1_state4
+	;cjne a, #3, FSM1_state4
 
 
-	;ljmp Forever
-
+	ljmp FSM_sys
+	
 END
 
 
