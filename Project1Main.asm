@@ -200,6 +200,7 @@ Abort_Check0:
 	jc Abort_Check1						; if temperature is below 300, continue to next check
 	; abort routine
 	mov FSM1_state, #10
+	ljmp Timer2_ISR_done				; abort has already been triggered, so go straight to timer2 isr done
 
 Abort_Check1:
 ; Check if temperature is below 50. If so, check for how long
@@ -214,10 +215,10 @@ Abort_Check2:
 	mov a, abort_time
 	clr c
 	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jnc Timer2_ISR_done					; if there is a carry 
+	jnc Timer2_ISR_done					; if there is a carry, abort
 	mov FSM1_state, #10
 
-Timer2_ISR_abort_done:
+Timer2_ISR_abort_done:					; reset the abort timer if temp was above 50
 	mov abort_time, #0
 
 Timer2_ISR_done:
@@ -417,6 +418,13 @@ Export:							; Data export to python
 	; /* FSM1 STATE CHANGE CONTROLS */
 	ljmp FSM1
 
+; REQUIREMENTS
+; Start/Stop button, to do this, make routine which displays "stopped" for a little bit
+; Temperature display, implemented already
+; Running time display, implement in main
+; 
+
+
 
 FSM1:
 	mov a, FSM1_state
@@ -429,6 +437,7 @@ FSM1_state0:
 	; check for push button input
 	jb START_BUTTON, FSM1_state0_done
 	jnb START_BUTTON, $ ; Wait for key release
+
 	mov FSM1_state, #1
 
 FSM1_state0_done:
