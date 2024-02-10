@@ -405,7 +405,7 @@ FSM1_state1:
 	mov seconds, #0 
 	mov a, #150
 	clr c
-	subb a, temp1
+	subb a, temp1		; Want the temperature to exceed 150 seconds
 	jnc FSM1_state1_done
 	mov FSM1_state, #2
 
@@ -418,12 +418,9 @@ FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
 	jnb seconds_flag, FSM_state2_funk
-	clr a
-	mov seconds, a
 	mov a, #60
 	clr c
-	subb a, seconds
-	mov a, #FSM1_state
+	subb seconds, a	 	; Want time to be greater than 60 seconds
 	jnc FSM1_state2_done
 	mov FSM1_state, #3
 
@@ -441,7 +438,7 @@ FSM1_state3:
 	mov a, #220
 	clr seconds_flag
 	clr c
-	subb a, temp1
+	subb a, temp1		; Want temp to be greater than 220 C
 	jnc FSM1_state3_done
 	mov FSM1_state, #4
 
@@ -453,10 +450,11 @@ FSM1_state4:
 	mov pwm, #20 
 	jnb seconds_flag, FSM1_state4_funk
 	clr c 
+	mov a, #45
+	subb tempc, a
+	jnc FSM1_state4_done
+	mov FSM1_state, #5 
 
-
-
-	ljmp FSM_sys
 
 FSM1_state4_funk:
 	mov second, #0
@@ -464,7 +462,7 @@ FSM1_state4_funk:
 	ljmp FSM1_state4
 
 FSM1_state4_done:
-ljmp FSM_sys
+	ljmp FSM_sys
 
 
 
