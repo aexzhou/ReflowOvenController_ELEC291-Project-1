@@ -40,7 +40,7 @@ LCD_D4 equ P0.0
 LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
-OPAMP  equ P1.4			; Port 20 
+OPAMP  equ #0x05			; ADC 5 
 PWM_OUT equ P1.0
 START_BUTTON equ P0.4
 
