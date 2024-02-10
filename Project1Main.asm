@@ -451,13 +451,13 @@ FSM1_state4:
 	jnb seconds_flag, FSM1_state4_funk
 	clr c 
 	mov a, #45
-	subb tempc, a
+	subb seconds, a		; Want temp to be less than 45 
 	jnc FSM1_state4_done
 	mov FSM1_state, #5 
 
 
 FSM1_state4_funk:
-	mov second, #0
+	mov seconds, #0
 	setb seconds_flag
 	ljmp FSM1_state4
 
