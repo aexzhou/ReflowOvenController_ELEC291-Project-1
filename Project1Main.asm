@@ -52,9 +52,9 @@ LCD_D7 equ P0.3
 PWM_OUT equ P1.0
 START_BUTTON equ P0.4
 ; Analog Input Port Numbering
-LED_PORT equ #0x00			; AIN port numbers
-LM335_PORT equ #0x05
-OPAMP_PORT equ #0x01
+LED_PORT equ 0x00			; AIN port numbers
+LM335_PORT equ 0x05
+OPAMP_PORT equ 0x01
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -72,6 +72,8 @@ temp_out: 	ds 4
 VLED_ADC: ds 2
 dtemp:  ds 2
 tempc: ds 1
+temp_mc:	ds 4
+OPAMP_temp: ds 4
 
 ; /* FSM STATES */
 FSM1_state:  ds 1
@@ -83,9 +85,6 @@ seconds: 		ds 1
 pwm:			ds 1
 abort_time:		ds 1
 
-; /* FSM STATES */
-FSM1_state:  ds 1
-
 BSEG
 mf: dbit 1
 seconds_flag: dbit 1
@@ -95,50 +94,6 @@ s_flag: dbit 1
 $NOLIST
 $include(math32.inc)
 $LIST
-
-;---------------------------------;
-; Routine to initialize the ISR   ;
-; for timer 2                     ;
-;---------------------------------;
-Timer2_Init:
-	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
-	mov TH2, #high(TIMER2_RELOAD)
-	mov TL2, #low(TIMER2_RELOAD)
-	; Set the reload value
-	orl T2MOD, #0x80 ; Enable timer 2 autoreload
-	mov RCMP2H, #high(TIMER2_RELOAD)
-	mov RCMP2L, #low(TIMER2_RELOAD)
-	; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
-	clr a
-	mov Count10ms, a
-	; Enable the timer and interrupts
-	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
-    setb TR2  ; Enable timer 2
-	ret
-
-Timer2_ISR:
-	clr TF2
-	cpl P0.4
-	push acc
-	push psw
-	inc Count10ms
-	mov a, Count10ms
-	cjne a, #100, Timer2_ISR_done
-	; if a is equal to 100, a whole second will have passed
-	setb seconds_flag
-	; test code to see if seconds check works
-	Set_Cursor(1,1)
-	Display_char(#0x31)
-	
-	clr a
-	mov Count10ms, a
-
-Timer2_ISR_done:
-	pop psw
-	pop acc
-	reti
-
-; /* Configure the serial port and baud rate */
 
 InitAll:
 	; /*** SERIAL PORT INITIALIZATION ***/
@@ -246,11 +201,11 @@ Abort_Check0:
 ; Check if temperature is above 300. If so, abort
 	clr c
 	mov a, tempc
-	subb a, #300						; if a is greater than 300, there will be no carry bit so we need to abort
-	jc Abort_Check1						; if temperature is below 300, continue to next check
+	subb a, #240						; if a is greater than 240, there will be no carry bit so we need to abort
+	jc Abort_Check1						; if temperature is below 240, continue to next check
 	; abort routine
 	mov FSM1_state, #10
-    ljmp Timer2_ISR_done                ; if temp is above 300, abort condition has already been triggered, skip ahead to done
+    ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
 
 Abort_Check1:
 ; Check if temperature is below 50. If so, check for how long
@@ -403,7 +358,6 @@ Main:
     Send_Constant_String(#test_message)
 	Set_Cursor(2, 1)
     Send_Constant_String(#value_message)
-	setb cel
 
 	mov data_out, #0b00000001
 
@@ -535,8 +489,8 @@ FSM1_state2:
 	jnb seconds_flag, FSM_state2_funk
 	mov a, #60
 	clr c
-	subb seconds, a	 	; Want time to be greater than 60 seconds
-	jnc FSM1_state2_done
+	subb a, seconds	 	; Want time to be greater than 60 seconds
+	jc FSM1_state2_done
 	mov FSM1_state, #3
 
 FSM_state2_funk:
@@ -553,7 +507,7 @@ FSM1_state3:
 	mov a, #220
 	clr seconds_flag
 	clr c
-	subb a, temp1
+	subb a, tempc
 	jnc FSM1_state3_done
 	mov FSM1_state, #4
 
@@ -566,8 +520,8 @@ FSM1_state4:
 	jnb seconds_flag, FSM1_state4_funk
 	mov a, #45
 	clr c 
-	subb seconds, a
-	jnc FSM1_state4_done
+	subb a, seconds ; when seconds is greater than 45, there will be a carry bit
+	jc FSM1_state4_done
 	mov FSM1_state, #5
 
 FSM1_state4_funk:
