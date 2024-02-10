@@ -68,7 +68,7 @@ add_lm335_to_opamp:
 export_to_main:
     Load_y(1000)
     lcall div32
-    mov tempc, x+0
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)
     
 
 
