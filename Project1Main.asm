@@ -390,6 +390,7 @@ FSM1:
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
 	mov pwm, #0
+	clr seconds_flag
 	; check for push button input
 	jb START_BUTTON, FSM1_state0_done
 	jnb START_BUTTON, $ ; Wait for key release
@@ -401,12 +402,14 @@ FSM1_state0_done:
 FSM1_state1:
 	cjne a, #1, FSM1_state2
 	mov pwm, #100
-	mov seconds, #0
+	mov seconds, #0 
 	mov a, #150
 	clr c
 	subb a, temp1
 	jnc FSM1_state1_done
 	mov FSM1_state, #2
+
+
 
 FSM1_state1_done:
 	ljmp FSM_sys
@@ -414,13 +417,20 @@ FSM1_state1_done:
 FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
+	jnb seconds_flag, FSM_state2_funk
 	clr a
 	mov seconds, a
 	mov a, #60
 	clr c
 	subb a, seconds
+	mov a, #FSM1_state
 	jnc FSM1_state2_done
 	mov FSM1_state, #3
+
+FSM_state2_funk:
+	mov seconds, #0 	; Set seconds so we can count up to the required time 
+	setb seconds_flag	; seconds flag so we don't reset seconds_flag multiple times
+	ljmp FSM1_state2	
 
 FSM1_state2_done:
 	ljmp FSM_sys
@@ -429,6 +439,7 @@ FSM1_state3:
 	cjne a, #3, FSM1_state4
 	mov pwm, #100
 	mov a, #220
+	clr seconds_flag
 	clr c
 	subb a, temp1
 	jnc FSM1_state3_done
@@ -440,12 +451,23 @@ FSM1_state3_done:
 FSM1_state4:
 	cjne a, #4 FSM1_state5
 	mov pwm, #20 
-	mov sec, #0
-	
+	jnb seconds_flag, FSM1_state4_funk
+	clr c 
 
 
 
 	ljmp FSM_sys
+
+FSM1_state4_funk:
+	mov second, #0
+	setb seconds_flag
+	ljmp FSM1_state4
+
+FSM1_state4_done:
+ljmp FSM_sys
+
+
+
 
 END
 
