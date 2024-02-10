@@ -199,24 +199,23 @@ Abort_Check0:
 	subb a, #300						; if a is greater than 300, there will be no carry bit so we need to abort
 	jc Abort_Check1						; if temperature is below 300, continue to next check
 	; abort routine
+	mov FSM1_state, #10
 
 Abort_Check1:
+; Check if temperature is below 50. If so, check for how long
 	mov a, tempc
 	clr c
 	subb a, #50							; if tempc (stored in a) is less than 50, there will be a carry bit
 	jnc Timer2_ISR_abort_done			; skip the abort checks if temperature is above 50
 
 Abort_Check2:
-	; code below executes when temp is below 50
+; Check if has been 60 seconds (at below 50 degrees)
 	inc abort_time
 	mov a, abort_time
 	clr c
 	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jnc Timer2_ISR_done					; abort state triggered when not in state 0, and temp is below 50C for over a minute
-	Set_Cursor(1,1)
-	Send_Constant_String(#abort_message)
-	mov FSM1_state, #0
-	ljmp Timer2_ISR_done
+	jnc Timer2_ISR_done					; if there is a carry 
+	mov FSM1_state, #10
 
 Timer2_ISR_abort_done:
 	mov abort_time, #0
@@ -452,12 +451,9 @@ FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
 	jnb seconds_flag, FSM_state2_funk
-	clr a
-	mov seconds, a
 	mov a, #60
 	clr c
-	subb a, seconds
-	mov a, #FSM1_state
+	subb seconds, a	 	; Want time to be greater than 60 seconds
 	jnc FSM1_state2_done
 	mov FSM1_state, #3
 
@@ -475,7 +471,7 @@ FSM1_state3:
 	mov a, #220
 	clr seconds_flag
 	clr c
-	subb a, tempc
+	subb a, temp1
 	jnc FSM1_state3_done
 	mov FSM1_state, #4
 
@@ -486,7 +482,11 @@ FSM1_state4:
 	cjne a, #4, FSM1_state5
 	mov pwm, #20 
 	jnb seconds_flag, FSM1_state4_funk
+	mov a, #45
 	clr c 
+	subb seconds, a
+	jnc FSM1_state4_done
+	mov FSM1_state, #5
 
 FSM1_state4_funk:
 	mov seconds, #0
@@ -497,6 +497,7 @@ FSM1_state4_done:
 	ljmp FSM_sys
 
 FSM1_state5:
+	cjne a, #5, FSM1_abort_state		; if the state is not in 0-5, then it must be 10 (aka the abort state)
 	mov pwm, #0
 	mov a, #60
 	clr c
@@ -507,9 +508,12 @@ FSM1_state5:
 FSM1_state5_done:
 	ljmp FSM_sys
 
-FSM1_abort_state:					; abort state triggered when not in state 0, and temp is below 50C for over a minute
+FSM1_abort_state:						; When the abort state is triggered, turn everything off and remain in this state utill you reset
+	mov pwm, #0
+	Set_Cursor(1,1)
+	Send_Constant_String(#abort_message)
 
-	ljmp FSM_sys
+	ljmp FSM1_abort_state
 
 END
 
