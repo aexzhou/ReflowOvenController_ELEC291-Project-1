@@ -48,6 +48,10 @@ $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
+; /* TIMER2 ENABLE */
+org 0x002B
+	ljmp Timer2_ISR
+
 ; /* MATH.INC STUFFS */
 DSEG at 30H
 x:   		ds 4
@@ -63,18 +67,60 @@ temp1: ds 1
 
 BSEG
 mf: dbit 1
+seconds_flag: dbit 1
 
 ; /* FSM STATES */
 FSM1_state:  ds 1
 
 ; /* TIME CHECK */
+count10ms: ds 1
 sec: ds 1
 
 $NOLIST
 $include(math32.inc)
 $LIST
 
+;---------------------------------;
+; Routine to initialize the ISR   ;
+; for timer 2                     ;
+;---------------------------------;
+Timer2_Init:
+	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
+	mov TH2, #high(TIMER2_RELOAD)
+	mov TL2, #low(TIMER2_RELOAD)
+	; Set the reload value
+	orl T2MOD, #0x80 ; Enable timer 2 autoreload
+	mov RCMP2H, #high(TIMER2_RELOAD)
+	mov RCMP2L, #low(TIMER2_RELOAD)
+	; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
+	clr a
+	mov Count10ms, a
+	; Enable the timer and interrupts
+	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
+    setb TR2  ; Enable timer 2
+	ret
 
+Timer2_ISR:
+	clr TF2
+	cpl P0.4
+	push acc
+	push psw
+	inc Count10ms
+	mov a, Count10ms
+	cjne a, #100, Timer2_ISR_done
+	; if a is equal to 100, a whole second will have passed
+	setb seconds_flag
+	; test code to see if seconds check works
+	Set_Cursor(1,1)
+	Display_char(#0x31)
+	
+	clr a
+	mov Count10ms, a
+
+Timer2_ISR_done:
+	pop psw
+	pop acc
+	reti
 
 ; /* Configure the serial port and baud rate */
 
@@ -247,6 +293,11 @@ Main:
     lcall InitAll
     lcall LCD_4BIT
 
+	; Initialize all variables
+	setb seconds_flag
+	mov FSM1_state, #0
+	mov sec, #0
+
     ; initial messages in LCD
 	Set_Cursor(1, 1)
     Send_Constant_String(#test_message)
@@ -303,18 +354,7 @@ Export:							; Data export to python
     ;ljmp Forever
 
 ; /* FSM1 STATE CHANGE CONTROLS */
-	mov a, FSM1_state
-	cjne a, #0, StateG0
-	ljmp FSM1_state0
-StateG0:
-	cjne a, #1, StateG1
-	ljmp FSM1_state1
-StateG1:
-	cjne a, #2, StateG2
-	ljmp FSM1_state2
-StateG2:
-
-StateG3:
+	ljmp FSM1
 
 
 FSM1:
@@ -337,7 +377,7 @@ FSM1_state1:
 	mov sec, #0
 	mov a, #150
 	clr c
-	subb a, temp
+	subb a, temp1
 	jnc FSM1_state1_done
 	mov FSM1_state, #2
 
@@ -346,7 +386,7 @@ FSM1_state1_done:
 
 FSM1_state2:
 	cjne a, #2, FSM1_state3
-	mov pwm, #20
+	mov PWM_OUT, #20
 	mov a, #60
 	clr c
 	subb a, sec
@@ -355,6 +395,10 @@ FSM1_state2:
 
 FSM1_state2_done:
 	ljmp FSM_sys
+
+FSM1_state3:
+	cjne a, #3, FSM1_state4
+
 
 	;ljmp Forever
 
