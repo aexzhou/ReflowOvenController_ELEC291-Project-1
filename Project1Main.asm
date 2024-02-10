@@ -425,10 +425,24 @@ FSM1_state2_done:
 	ljmp FSM_sys
 
 FSM1_state3:
-	;cjne a, #3, FSM1_state4
+	cjne a, #3, FSM1_state4
+	mov pwm, #100
+	mov a, #220
+	clr c
+	subb a, temp1
+	jnc FSM1_state3_done
+	mov FSM1_state, #4
 
-
+FSM1_state3_done:
 	ljmp FSM_sys
+
+FSM1_state4:
+	cjne a, #4 FSM1_state5
+	mov pwm, #20 
+	mov sec, #0
+	
+
+
 
 END
 
