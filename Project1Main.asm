@@ -440,7 +440,7 @@ FSM1_state4:
 	cjne a, #4 FSM1_state5
 	mov pwm, #20 
 	mov sec, #0
-	
+
 
 
 
