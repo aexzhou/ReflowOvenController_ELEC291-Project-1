@@ -74,7 +74,6 @@ FSM1_state:  ds 1
 pwm_counter:	ds 1
 count10ms: 		ds 1
 seconds: 		ds 1
-sec:			ds 1
 pwm:			ds 1
 
 
@@ -315,7 +314,7 @@ Main:
 	; Initialize all variables
 	setb seconds_flag
 	mov FSM1_state, #0
-	mov sec, #0
+	mov seconds, #0
 
     ; initial messages in LCD
 	;Set_Cursor(1, 1)
@@ -402,7 +401,7 @@ FSM1_state0_done:
 FSM1_state1:
 	cjne a, #1, FSM1_state2
 	mov pwm, #100
-	mov sec, #0
+	mov seconds, #0
 	mov a, #150
 	clr c
 	subb a, temp1
@@ -419,7 +418,7 @@ FSM1_state2:
 	mov seconds, a
 	mov a, #60
 	clr c
-	subb a, sec
+	subb a, seconds
 	jnc FSM1_state2_done
 	mov FSM1_state, #3
 
@@ -441,7 +440,9 @@ FSM1_state3_done:
 FSM1_state4:
 	cjne a, #4 FSM1_state5
 	mov pwm, #20 
-	mov sec, #0
+	mov seconds, #0
+	; I HATE FLAGS
+
 	
 
 
