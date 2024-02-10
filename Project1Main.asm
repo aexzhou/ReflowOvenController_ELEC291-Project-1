@@ -36,6 +36,7 @@ test_message:     db '****LOADING*****', 0
 value_message:    db 'TEMP:      ', 0
 cel_message:	  db 'CELCIUS  READING',0
 fah_message:      db 'FARENHET READING',0
+abort_message: 	  db 'ABORTABORTABORT ', 0
 
 CSEG
 
@@ -75,6 +76,7 @@ pwm_counter:	ds 1
 count10ms: 		ds 1
 seconds: 		ds 1
 pwm:			ds 1
+abort_time:		ds 1
 
 
 
@@ -182,9 +184,42 @@ Timer2_ISR:
 	
 	mov a, pwm_counter
 	cjne a, #100, Timer2_ISR_done
+	; executes every second
 	mov pwm_counter, #0
 	inc seconds ; It is super easy to keep a seconds count here
 	setb s_flag
+	mov a, FSM1_state
+	cjne a, #0, Abort_Check0			; For abort check, the abort should not trigger if you are in state 0
+	ljmp Timer2_ISR_done
+
+Abort_Check0:
+; Check if temperature is above 300. If so, abort
+	clr c
+	mov a, tempc
+	subb a, #300						; if a is greater than 300, there will be no carry bit so we need to abort
+	jc Abort_Check1						; if temperature is below 300, continue to next check
+	; abort routine
+
+Abort_Check1:
+	mov a, tempc
+	clr c
+	subb a, #50							; if tempc (stored in a) is less than 50, there will be a carry bit
+	jnc Timer2_ISR_abort_done			; skip the abort checks if temperature is above 50
+
+Abort_Check2:
+	; code below executes when temp is below 50
+	inc abort_time
+	mov a, abort_time
+	clr c
+	subb a, #60							; if abort_time is less than 60, there will be a carry bit
+	jnc Timer2_ISR_done					; abort state triggered when not in state 0, and temp is below 50C for over a minute
+	Set_Cursor(1,1)
+	Send_Constant_String(#abort_message)
+	mov FSM1_state, #0
+	ljmp Timer2_ISR_done
+
+Timer2_ISR_abort_done:
+	mov abort_time, #0
 
 Timer2_ISR_done:
 	pop acc
@@ -315,6 +350,7 @@ Main:
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
+	mov abort_time, #0
 
     ; initial messages in LCD
 	;Set_Cursor(1, 1)
@@ -469,6 +505,10 @@ FSM1_state5:
 	mov FSM1_state, #0
 
 FSM1_state5_done:
+	ljmp FSM_sys
+
+FSM1_abort_state:					; abort state triggered when not in state 0, and temp is below 50C for over a minute
+
 	ljmp FSM_sys
 
 END
