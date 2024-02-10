@@ -31,6 +31,7 @@ org 0000H
 org 0x002B
 	ljmp Timer2_ISR
 
+
 ;                     1234567890123456    <- This helps determine the location of the counter
 test_message:     db '****LOADING*****', 0
 value_message:    db 'TEMP:      ', 0
@@ -47,9 +48,13 @@ LCD_D4 equ P0.0
 LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
-OPAMP  equ P1.4			; Port 20 
+
 PWM_OUT equ P1.0
 START_BUTTON equ P0.4
+; Analog Input Port Numbering
+LED_PORT equ #0x00			; AIN port numbers
+LM335_PORT equ #0x05
+OPAMP_PORT equ #0x01
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -78,16 +83,60 @@ seconds: 		ds 1
 pwm:			ds 1
 abort_time:		ds 1
 
-
+; /* FSM STATES */
+FSM1_state:  ds 1
 
 BSEG
 mf: dbit 1
 seconds_flag: dbit 1
-s_flag: 	dbit 1
+s_flag: dbit 1
+
 
 $NOLIST
 $include(math32.inc)
 $LIST
+
+;---------------------------------;
+; Routine to initialize the ISR   ;
+; for timer 2                     ;
+;---------------------------------;
+Timer2_Init:
+	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
+	mov TH2, #high(TIMER2_RELOAD)
+	mov TL2, #low(TIMER2_RELOAD)
+	; Set the reload value
+	orl T2MOD, #0x80 ; Enable timer 2 autoreload
+	mov RCMP2H, #high(TIMER2_RELOAD)
+	mov RCMP2L, #low(TIMER2_RELOAD)
+	; Init One millisecond interrupt counter.  It is a 16-bit variable made with two 8-bit parts
+	clr a
+	mov Count10ms, a
+	; Enable the timer and interrupts
+	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
+    setb TR2  ; Enable timer 2
+	ret
+
+Timer2_ISR:
+	clr TF2
+	cpl P0.4
+	push acc
+	push psw
+	inc Count10ms
+	mov a, Count10ms
+	cjne a, #100, Timer2_ISR_done
+	; if a is equal to 100, a whole second will have passed
+	setb seconds_flag
+	; test code to see if seconds check works
+	Set_Cursor(1,1)
+	Display_char(#0x31)
+	
+	clr a
+	mov Count10ms, a
+
+Timer2_ISR_done:
+	pop psw
+	pop acc
+	reti
 
 ; /* Configure the serial port and baud rate */
 
@@ -167,6 +216,7 @@ InitAll:
 	setb EA ; Enable global interrupts
     ret
 
+
 ;---------------------------------;
 ; ISR for Timer 2                 ;
 ;---------------------------------;
@@ -200,7 +250,7 @@ Abort_Check0:
 	jc Abort_Check1						; if temperature is below 300, continue to next check
 	; abort routine
 	mov FSM1_state, #10
-	ljmp Timer2_ISR_done				; abort has already been triggered, so go straight to timer2 isr done
+    ljmp Timer2_ISR_done                ; if temp is above 300, abort condition has already been triggered, skip ahead to done
 
 Abort_Check1:
 ; Check if temperature is below 50. If so, check for how long
@@ -215,10 +265,10 @@ Abort_Check2:
 	mov a, abort_time
 	clr c
 	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jnc Timer2_ISR_done					; if there is a carry, abort
+	jnc Timer2_ISR_done					; if there is a carry 
 	mov FSM1_state, #10
 
-Timer2_ISR_abort_done:					; reset the abort timer if temp was above 50
+Timer2_ISR_abort_done:
 	mov abort_time, #0
 
 Timer2_ISR_done:
@@ -233,15 +283,12 @@ line2:
 	DB 'Chk pin 15:P1.0 '
 	DB 0
 
-
-
 ; /* Send a character using the serial port */
 putchar:
     jnb TI, putchar
     clr TI
     mov SBUF, a
     ret
-
 
 ; Send a constant-zero-terminated string using the serial port
 SendString:
@@ -257,16 +304,16 @@ SendStringDone:
 ; Sends binary data to Python via putchar
 SendBin:					
 	clr A					; Sends temp_out
-	mov a, temp_out+0
+	mov a, temp_mc+0
 	lcall putchar
 	clr A
-	mov a, temp_out+1
+	mov a, temp_mc+1
 	lcall putchar
 	clr A
-	mov a, temp_out+2
+	mov a, temp_mc+2
 	lcall putchar
 	clr A
-	mov a, temp_out+3
+	mov a, temp_mc+3
 	lcall putchar
 
 	clr A					; Sends data_out
@@ -350,70 +397,99 @@ Main:
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
-	mov abort_time, #0
 
     ; initial messages in LCD
-	;Set_Cursor(1, 1)
-    ;Send_Constant_String(#test_message)
-	;Set_Cursor(2, 1)
-    ;Send_Constant_String(#value_message)
-
-	Set_Cursor(1,1)
-	mov dptr, #Line1
-	lcall ?Send_Constant_String
-	Set_Cursor(2,1)
-	mov dptr, #Line2
-	lcall ?Send_Constant_String
-
-	mov pwm, #20
+	Set_Cursor(1, 1)
+    Send_Constant_String(#test_message)
+	Set_Cursor(2, 1)
+    Send_Constant_String(#value_message)
+	setb cel
 
 	mov data_out, #0b00000001
 
 ;Forever: ;avaliable: r2, r3
 FSM_sys:
-
-	; /* CALIBRATE */ 
-	anl ADCCON0, #0xF0 ; Read the 2.08V LED voltage connected to AIN0 on pin 6
-	orl ADCCON0, #0x00 ; Select channel 0
+; /* TEMP_READ: READS TEMPERATURE */
+; Note:     Before converting to be stored tempC, 
+;           all values are stored as 32 bit numbers 
+;           with 3 decimal points. (in milli-celcius)
+;           
+; Example:  2.07 V would be represented by the number
+;           20700. (The real value * 1000).
+TEMP_READ:
+    anl ADCCON0, #0xf0          ; read led voltage
+    orl ADCCON0, #LED_PORT
     lcall Read_ADC
-    
-	mov VLED_ADC+0, R0 ; Save result for later use
+    mov VLED_ADC+0, R0          ; save reading to VLED_ADC
 	mov VLED_ADC+1, R1
 
-	anl ADCCON0, #0xF0 ; Read the signal connected to AIN7
-	orl ADCCON0, #0x07 ; Select channel 7
-	lcall Read_ADC
-
-Celcius: 
-	mov x+0, R0 			; x <- adc(ch) 
+read_opamp:
+    anl ADCCON0, #0xf0          ; *** OPAMP ***
+    orl ADCCON0, #OPAMP_PORT
+    lcall Read_ADC
+    mov x+0, R0 			    ; load opamp reading to x
 	mov x+1, R1
-	mov x+2, #0 			; pad w/0
+	mov x+2, #0 			
 	mov x+3, #0
-	Load_y(207000) 			; y <- (x.xxx (vled) * 1000) * 100
-	lcall mul32				
-    mov y+0, VLED_ADC+0 	; y <- adc(led)
-	mov y+1, VLED_ADC+1
+    Load_y(207000)              ; load const vled ref into y      
+    lcall mul32
+    mov y+0, VLED_ADC+0 	    ; import vled reading into y
+	mov y+1, VLED_ADC+1         
 	mov y+2, #0 			
-	mov y+3, #0 
-	lcall div32				; x <- adc(ch) * vled * 100 / adc(led)
-	Load_y(273150)			; y <- (2.7315 * 1000) * 100
-	lcall sub32	
+	mov y+3, #0
+    lcall div32                 ; x value stores celcius 
+    Load_y(1000)                ; celcius -> milli celcius 
+    mov OPAMP_temp+0, x+0       ; save calculated opamp temp (mili C)
+    mov OPAMP_temp+1, x+1
+    mov OPAMP_temp+2, x+2
+    mov OPAMP_temp+3, x+3
 
-	lcall hex2bcd 			; Convert to BCD and display
+read_lm335:
+    anl ADCCON0, #0xf0          ; *** LM335 ***
+    orl ADCCON0, #LM335_PORT
+    lcall Read_ADC
+    mov x+0, R0 			    ; load lm335 reading to x
+	mov x+1, R1
+	mov x+2, #0 			
+	mov x+3, #0
+    Load_y(207000)               ; load const vled ref into y      
+    lcall mul32
+    mov y+0, VLED_ADC+0 	    ; import vled reading into y
+	mov y+1, VLED_ADC+1         
+	mov y+2, #0 			
+	mov y+3, #0
+    lcall div32
+    Load_y(10)
+    lcall mul32
+    Load_y(273000)			    ; adjust to 273.000 C offset
+	lcall sub32	                ; result of lm335 temp remains in x
+
+add_lm335_to_opamp:
+    mov y+0, OPAMP_temp+0       ; load opamp temp to y
+    mov y+1, OPAMP_temp+1
+    mov y+2, OPAMP_temp+2
+    mov y+3, OPAMP_temp+3
+    lcall add32                 ; lm335 + opamp = real temp
+    mov temp_mc+0, x+0          ; store result in temp_mc (for python)
+    mov temp_mc+1, x+1
+    mov temp_mc+2, x+2
+    mov temp_mc+3, x+3
+
+export_to_main:
+    Load_y(1000)
+    lcall div32
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)
+
+	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
 	lcall Display_formated_BCD
-    lcall bcd2hex 			;hex number now stored in x			
+    lcall bcd2hex 				; hex number now stored in x			
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
-	lcall waitms
-
-	;mov dptr, #x
-    lcall SendBin
-	;mov dptr, #New_Line
-	;lcall SendString
-    ;ljmp Forever
+	lcall waitms				; Sends binary contents of 
+    lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */
 	ljmp FSM1
@@ -425,10 +501,8 @@ Export:							; Data export to python
 ; 
 
 
-
 FSM1:
 	mov a, FSM1_state
-
 
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
@@ -437,7 +511,6 @@ FSM1_state0:
 	; check for push button input
 	jb START_BUTTON, FSM1_state0_done
 	jnb START_BUTTON, $ ; Wait for key release
-
 	mov FSM1_state, #1
 
 FSM1_state0_done:
@@ -525,5 +598,6 @@ FSM1_abort_state:						; When the abort state is triggered, turn everything off 
 	ljmp FSM1_abort_state
 
 END
+
 
 
