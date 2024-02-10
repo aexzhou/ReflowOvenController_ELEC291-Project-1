@@ -65,7 +65,7 @@ temp_out: 	ds 4
 
 VLED_ADC: ds 2
 dtemp:  ds 2
-temp1: ds 1
+tempc: ds 1
 
 ; /* FSM STATES */
 FSM1_state:  ds 1
@@ -379,7 +379,7 @@ Export:							; Data export to python
 	;lcall SendString
     ;ljmp Forever
 
-; /* FSM1 STATE CHANGE CONTROLS */
+	; /* FSM1 STATE CHANGE CONTROLS */
 	ljmp FSM1
 
 
@@ -402,14 +402,12 @@ FSM1_state0_done:
 FSM1_state1:
 	cjne a, #1, FSM1_state2
 	mov pwm, #100
-	mov seconds, #0 
+	mov seconds, #0
 	mov a, #150
 	clr c
-	subb a, temp1
+	subb a, tempc
 	jnc FSM1_state1_done
 	mov FSM1_state, #2
-
-
 
 FSM1_state1_done:
 	ljmp FSM_sys
@@ -441,7 +439,7 @@ FSM1_state3:
 	mov a, #220
 	clr seconds_flag
 	clr c
-	subb a, temp1
+	subb a, tempc
 	jnc FSM1_state3_done
 	mov FSM1_state, #4
 
@@ -449,25 +447,29 @@ FSM1_state3_done:
 	ljmp FSM_sys
 
 FSM1_state4:
-	cjne a, #4 FSM1_state5
+	cjne a, #4, FSM1_state5
 	mov pwm, #20 
 	jnb seconds_flag, FSM1_state4_funk
 	clr c 
 
-
-
-	ljmp FSM_sys
-
 FSM1_state4_funk:
-	mov second, #0
+	mov seconds, #0
 	setb seconds_flag
 	ljmp FSM1_state4
 
 FSM1_state4_done:
-ljmp FSM_sys
+	ljmp FSM_sys
 
+FSM1_state5:
+	mov pwm, #0
+	mov a, #60
+	clr c
+	subb a, tempc
+	jc FSM1_state5_done
+	mov FSM1_state, #0
 
-
+FSM1_state5_done:
+	ljmp FSM_sys
 
 END
 
