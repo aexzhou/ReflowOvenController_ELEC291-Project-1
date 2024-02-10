@@ -17,10 +17,12 @@ $LIST
 ;                               -------
 ;
 
-CLK                 EQU 16600000 ; Microcontroller system frequency in Hz
-BAUD                EQU 115200 ; Baud rate of UART in bps
+CLK                 EQU 16600000 						; Microcontroller system frequency in Hz
+BAUD                EQU 115200 							; Baud rate of UART in bps
 TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
+TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
+TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
 
 org 0000H
    ljmp Main
@@ -39,6 +41,7 @@ LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
 OPAMP  equ P1.4			; Port 20 
+PWM_OUT equ P1.0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
