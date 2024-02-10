@@ -17,10 +17,12 @@ $LIST
 ;                               -------
 ;
 
-CLK                 EQU 16600000 ; Microcontroller system frequency in Hz
-BAUD                EQU 115200 ; Baud rate of UART in bps
+CLK                 EQU 16600000 						; Microcontroller system frequency in Hz
+BAUD                EQU 115200 							; Baud rate of UART in bps
 TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
+TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
+TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
 
 org 0000H
    ljmp Main
@@ -31,35 +33,42 @@ cel_message:	  db 'CELCIUS  READING',0
 fah_message:      db 'FARENHET READING',0
 CSEG
 
-; /* LCD HARDWIRING */
+; /* PORT DEFINITIONS */
 LCD_RS equ P1.3
 LCD_E  equ P1.4
 LCD_D4 equ P0.0
 LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
-UNIT   equ P1.5
+OPAMP  equ P1.4			; Port 20 
+PWM_OUT equ P1.0
+START_BUTTON equ P0.4
+
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
 ; /* MATH.INC STUFFS */
 DSEG at 30H
-x:   ds 4
-y:   ds 4
-z:   ds 1
+x:   		ds 4
+y:   		ds 4
+data_out:   ds 1
 
-bcd: ds 5
-
+bcd: 		ds 5
+temp_out: 	ds 4
 
 VLED_ADC: ds 2
 dtemp:  ds 2
 temp1: ds 1
-BCD_counter: ds 1
 
 BSEG
 mf: dbit 1
-cel: dbit 1
+
+; /* FSM STATES */
+FSM1_state:  ds 1
+
+; /* TIME CHECK */
+sec: ds 1
 
 $NOLIST
 $include(math32.inc)
@@ -146,25 +155,23 @@ SendString:
 SendStringDone:
     ret
 
-SendBin:
+; Sends binary data to Python via putchar
+SendBin:					
+	clr A					; Sends temp_out
+	mov a, temp_out+0
+	lcall putchar
 	clr A
-	mov a, x+0
+	mov a, temp_out+1
+	lcall putchar
+	clr A
+	mov a, temp_out+2
+	lcall putchar
+	clr A
+	mov a, temp_out+3
 	lcall putchar
 
-	clr A
-	mov a, x+1
-	lcall putchar
-
-	clr A
-	mov a, x+2
-	lcall putchar
-
-	clr A
-	mov a, x+3
-	lcall putchar
-
-	clr A
-	mov a, z
+	clr A					; Sends data_out
+	mov a, data_out 
 	lcall putchar
 	ret
 
@@ -213,30 +220,6 @@ Display_formated_BCD: ;4 dig
 
 	ret
 
-Display_formated_BCD_F: ;4 dig 
-	Set_Cursor(1, 1)
-    Send_Constant_String(#fah_message)
-	Set_Cursor(2, 7)
-	Display_BCD(bcd+2)
-	Set_Cursor(2, 9)
-	Display_BCD(bcd+1)
-	Set_Cursor(2, 10)
-	Display_BCD(bcd+1)
-	
-	Set_Cursor(2, 12)
-	Display_BCD(bcd+0)
-	Set_Cursor(2, 10)
-	Display_char(#'.')
-	Set_Cursor(2, 7)
-	;Display_char(#0x20)
-	Set_Cursor(2, 15)
-	Display_char(#0xDF)
-	Set_Cursor(2, 16)
-	Display_char(#'F')
-
-	ret
-
-
 ; /* READ ADC */
 Read_ADC:
 	clr ADCF
@@ -271,23 +254,10 @@ Main:
     Send_Constant_String(#value_message)
 	setb cel
 
-	mov z, #0b00000001
+	mov data_out, #0b00000001
 
-Forever: ;avaliable: r2, r3
-
-button:
-	jb UNIT, button_skip ; if the 'CLEAR' button is not pressed skip
-	Wait_Milli_Seconds(#50)	; Debounce delay.  This macro is also in 'LCD_4bit.inc'
-	jb UNIT, button_skip  ; if the 'CLEAR' button is not pressed skip
-	jnb UNIT, $		; Wait for button release.  The '$' means: jump to same instruction.
-	cpl cel
-	jb cel, celyes
-	mov z, #0b00000010
-	sjmp button_skip
-celyes:
-	mov z, #0b00000001
-button_skip:
-
+;Forever: ;avaliable: r2, r3
+FSM_sys:
 
 	; /* CALIBRATE */ 
 	anl ADCCON0, #0xF0 ; Read the 2.08V LED voltage connected to AIN0 on pin 6
@@ -300,9 +270,6 @@ button_skip:
 	anl ADCCON0, #0xF0 ; Read the signal connected to AIN7
 	orl ADCCON0, #0x07 ; Select channel 7
 	lcall Read_ADC
-
-	jb cel, Celcius
-	ljmp Fah
 
 Celcius: 
 	mov x+0, R0 			; x <- adc(ch) 
@@ -321,41 +288,10 @@ Celcius:
 
 	lcall hex2bcd 			; Convert to BCD and display
 	lcall Display_formated_BCD
-    lcall bcd2hex 			;hex number now stored in x
+    lcall bcd2hex 			;hex number now stored in x			
 
-	ljmp Export	 		
-
-Fah:
-	mov x+0, R0 			; x <- adc(ch) 
-	mov x+1, R1
-	mov x+2, #0 			; pad w/0
-	mov x+3, #0
-	Load_y(207000) 			; y <- (x.xxx (vled) * 1000) * 100
-	lcall mul32					
-    mov y+0, VLED_ADC+0 	; y <- adc(led)
-	mov y+1, VLED_ADC+1
-	mov y+2, #0 			
-	mov y+3, #0 
-	lcall div32				; x <- adc(ch) * vled * 100 / adc(led)
-	Load_y(273150)			; y <- (2.7315 * 1000) * 100
-	lcall sub32
-
-	Load_y(9)
-	lcall mul32
-	Load_y(5)
-	lcall div32	
-	Load_y(32000)
-	lcall add32
-	
-	
-	lcall hex2bcd ; Convert to BCD and display
-	lcall Display_formated_BCD_F
-    lcall bcd2hex ;hex number now stored in x
-
-	ljmp Export	
-
-Export:	
-	mov R2, #250 ; Wait 500 ms between conversions
+Export:							; Data export to python
+	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms
@@ -364,8 +300,63 @@ Export:
     lcall SendBin
 	;mov dptr, #New_Line
 	;lcall SendString
+    ;ljmp Forever
 
-    ljmp Forever
+; /* FSM1 STATE CHANGE CONTROLS */
+	mov a, FSM1_state
+	cjne a, #0, StateG0
+	ljmp FSM1_state0
+StateG0:
+	cjne a, #1, StateG1
+	ljmp FSM1_state1
+StateG1:
+	cjne a, #2, StateG2
+	ljmp FSM1_state2
+StateG2:
+
+StateG3:
+
+
+FSM1:
+	mov a, FSM1_state
+
+FSM1_state0:
+	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
+	mov PWM_OUT, #0
+	; check for push button input
+	jb START_BUTTON, FSM1_state0_done
+	jnb START_BUTTON, $ ; Wait for key release
+	mov FSM1_state, #1
+
+FSM1_state0_done:
+	ljmp FSM_sys
+
+FSM1_state1:
+	cjne a, #1, FSM1_state2
+	mov PWM_OUT, #100
+	mov sec, #0
+	mov a, #150
+	clr c
+	subb a, temp
+	jnc FSM1_state1_done
+	mov FSM1_state, #2
+
+FSM1_state1_done:
+	ljmp FSM_sys
+
+FSM1_state2:
+	cjne a, #2, FSM1_state3
+	mov pwm, #20
+	mov a, #60
+	clr c
+	subb a, sec
+	jnc FSM1_state2_done
+	mov FSM1_state, #3
+
+FSM1_state2_done:
+	ljmp FSM_sys
+
+	;ljmp Forever
 
 END
 
