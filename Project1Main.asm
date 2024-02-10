@@ -440,10 +440,9 @@ FSM1_state3_done:
 FSM1_state4:
 	cjne a, #4 FSM1_state5
 	mov pwm, #20 
-	mov seconds, #0
-	; I HATE FLAGS
-
+	mov sec, #0
 	
+
 
 
 	ljmp FSM_sys
