@@ -484,52 +484,53 @@
 063F            381       ;ljmp Forever
 063F            382   
 063F            383   ; /* FSM1 STATE CHANGE CONTROLS */
-063F 020642     384            ljmp FSM1
+063F 0205DC     384            ljmp FSM_sys
 0642            385   
 0642            386   
 0642            387   FSM1:
 0642 E547       388            mov a, FSM1_state
 0644            389   
-0644            390   FSM1_state0:
-0644 B4000F     391            cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
-0647 754C00     392            mov pwm, #0
-064A            393            ; check for push button input
-064A 208406     394            jb START_BUTTON, FSM1_state0_done
-064D 3084FD     395            jnb START_BUTTON, $ ; Wait for key release
-0650 754701     396            mov FSM1_state, #1
-0653            397   
-0653            398   FSM1_state0_done:
-0653 0205DC     399            ljmp FSM_sys
-0656            400   
-0656            401   FSM1_state1:
-0656 B40113     402            cjne a, #1, FSM1_state2
-0659 754C64     403            mov pwm, #100
-065C 754B00     404            mov sec, #0
-065F 7496       405            mov a, #150
-0661 C3         406            clr c
-0662 9546       407            subb a, temp1
-0664 5003       408            jnc FSM1_state1_done
-0666 754702     409            mov FSM1_state, #2
-0669            410   
-0669            411   FSM1_state1_done:
-0669 0205DC     412            ljmp FSM_sys
-066C            413   
-066C            414   FSM1_state2:
-066C B40210     415            cjne a, #2, FSM1_state3
-066F 754C14     416            mov pwm, #20
-0672 743C       417            mov a, #60
-0674 C3         418            clr c
-0675 954B       419            subb a, sec
-0677 5003       420            jnc FSM1_state2_done
-0679 754703     421            mov FSM1_state, #3
-067C            422   
-067C            423   FSM1_state2_done:
-067C 0205DC     424            ljmp FSM_sys
-067F            425   
-067F            426   FSM1_state3:
-067F            427            ;cjne a, #3, FSM1_state4
-067F            428   
+0644            390   
+0644            391   FSM1_state0:
+0644 B4000F     392            cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
+0647 754C00     393            mov pwm, #0
+064A            394            ; check for push button input
+064A 208406     395            jb START_BUTTON, FSM1_state0_done
+064D 3084FD     396            jnb START_BUTTON, $ ; Wait for key release
+0650 754701     397            mov FSM1_state, #1
+0653            398   
+0653            399   FSM1_state0_done:
+0653 0205DC     400            ljmp FSM_sys
+0656            401   
+0656            402   FSM1_state1:
+0656 B40113     403            cjne a, #1, FSM1_state2
+0659 754C64     404            mov pwm, #100
+065C 754B00     405            mov sec, #0
+065F 7496       406            mov a, #150
+0661 C3         407            clr c
+0662 9546       408            subb a, temp1
+0664 5003       409            jnc FSM1_state1_done
+0666 754702     410            mov FSM1_state, #2
+0669            411   
+0669            412   FSM1_state1_done:
+0669 0205DC     413            ljmp FSM_sys
+066C            414   
+066C            415   FSM1_state2:
+066C B40210     416            cjne a, #2, FSM1_state3
+066F 754C14     417            mov pwm, #20
+0672 743C       418            mov a, #60
+0674 C3         419            clr c
+0675 954B       420            subb a, sec
+0677 5003       421            jnc FSM1_state2_done
+0679 754703     422            mov FSM1_state, #3
+067C            423   
+067C            424   FSM1_state2_done:
+067C 0205DC     425            ljmp FSM_sys
+067F            426   
+067F            427   FSM1_state3:
+067F            428            ;cjne a, #3, FSM1_state4
 067F            429   
-067F 0205DC     430            ljmp FSM_sys
-0682            431            
-0682            432   END
+067F            430   
+067F 0205DC     431            ljmp FSM_sys
+0682            432   
+0682            433   END

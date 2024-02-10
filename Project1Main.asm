@@ -387,6 +387,7 @@ Export:							; Data export to python
 FSM1:
 	mov a, FSM1_state
 
+
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
 	mov pwm, #0
@@ -428,7 +429,7 @@ FSM1_state3:
 
 
 	ljmp FSM_sys
-	
+
 END
 
 
