@@ -415,6 +415,8 @@ FSM1_state1_done:
 FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
+	clr a
+	mov seconds, a
 	mov a, #60
 	clr c
 	subb a, sec
@@ -443,6 +445,7 @@ FSM1_state4:
 	
 
 
+	ljmp FSM_sys
 
 END
 
