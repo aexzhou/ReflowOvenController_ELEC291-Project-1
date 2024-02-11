@@ -54,7 +54,7 @@ START_BUTTON equ P0.4
 ; Analog Input Port Numbering
 LED_PORT equ 0x00			; AIN port numbers
 LM335_PORT equ 0x05
-OPAMP_PORT equ 0x01
+OPAMP_PORT equ 0x07
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -391,7 +391,7 @@ sum_loop_avg:
     mov y+1, R1
     mov y+0, R0
     lcall add32
-    djnz R5, sum_loop_avg:
+    djnz R5, sum_loop_avg
     Load_y(0)
     lcall div32
     ret
@@ -441,7 +441,7 @@ read_lm335:
     lcall div32
     Load_y(10)
     lcall mul32
-    Load_y(273000)			    ; adjust to 273.000 C offset
+    Load_y(273)			    ; adjust to 273.000 C offset
 	lcall sub32	                ; result of lm335 temp remains in x
 
 add_lm335_to_opamp:
@@ -449,7 +449,7 @@ add_lm335_to_opamp:
     mov y+1, OPAMP_temp+1
     mov y+2, OPAMP_temp+2
     mov y+3, OPAMP_temp+3
-    lcall add32                 ; lm335 + opamp = real temp
+    ;lcall add32                 ; lm335 + opamp = real temp
     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
     mov temp_mc+1, x+1
     mov temp_mc+2, x+2

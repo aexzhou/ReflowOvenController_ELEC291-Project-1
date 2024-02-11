@@ -11,7 +11,7 @@ import threading
 
 # Initialize serial connection
 ser = serial.Serial(
-    port='COM5',  # Adjust as needed
+    port='COM3',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
