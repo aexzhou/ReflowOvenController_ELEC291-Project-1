@@ -67,13 +67,15 @@ y:   		ds 4
 data_out:   ds 1
 
 bcd: 		ds 5
-temp_out: 	ds 4
-
-VLED_ADC: ds 2
-dtemp:  ds 2
-tempc: ds 1
-temp_mc:	ds 4
-OPAMP_temp: ds 4
+;  /* TEMPERATURE VARIABLES */
+VLED_ADC: 		ds 2
+dtemp:  		ds 2
+tempc: 			ds 1
+temp_mc:		ds 4
+OPAMP_temp: 	ds 4
+temp_lm:   		ds 4
+temp_offset:	ds 2
+mV_offset:  	ds 2
 
 ; /* FSM STATES */
 FSM1_state:  ds 1
@@ -99,6 +101,10 @@ s_flag: dbit 1
 $NOLIST
 $include(math32.inc)
 $LIST
+
+; $NOLIST
+; $include(thermodata.inc)
+; $LIST
 
 InitAll:
 	; /*** SERIAL PORT INITIALIZATION ***/
@@ -155,6 +161,7 @@ InitAll:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
 	orl AINDIDS, #0b10000000 	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
+	mov temp_offset, #0x00
 
 ;----------------------------------------------------------------;
 ; 					TIMER 2 INITIALIZATION
@@ -263,7 +270,7 @@ SendStringDone:
 
 ; Sends binary data to Python via putchar
 SendBin:					
-	clr A					; Sends temp_out
+	clr A					; Sends temp_mc
 	mov a, temp_mc+0
 	lcall putchar
 	clr A
@@ -383,7 +390,7 @@ TEMP_READ:
 
 Avg_ADC:
     Load_X(0)
-    mov R5, #100
+    mov R5, #255
 sum_loop_avg:
     lcall Read_ADC
     mov y+3, #0
@@ -392,42 +399,21 @@ sum_loop_avg:
     mov y+0, R0
     lcall add32
     djnz R5, sum_loop_avg
-    Load_y(0)
+    Load_y(255)
     lcall div32
     ret
 
 read_led:
     anl ADCCON0, #0xf0          ; read led voltage
     orl ADCCON0, #LED_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov VLED_ADC+0, R0          ; save reading to VLED_ADC
 	mov VLED_ADC+1, R1
-
-read_opamp:
-    anl ADCCON0, #0xf0          ; *** OPAMP ***
-    orl ADCCON0, #OPAMP_PORT
-    lcall Read_ADC
-    mov x+0, R0 			    ; load opamp reading to x
-	mov x+1, R1
-	mov x+2, #0 			
-	mov x+3, #0
-    Load_y(207000)              ; load const vled ref into y      
-    lcall mul32
-    mov y+0, VLED_ADC+0 	    ; import vled reading into y
-	mov y+1, VLED_ADC+1         
-	mov y+2, #0 			
-	mov y+3, #0
-    lcall div32                 ; x value stores celcius 
-    Load_y(1000)                ; celcius -> milli celcius 
-    mov OPAMP_temp+0, x+0       ; save calculated opamp temp (mili C)
-    mov OPAMP_temp+1, x+1
-    mov OPAMP_temp+2, x+2
-    mov OPAMP_temp+3, x+3
 
 read_lm335:
     anl ADCCON0, #0xf0          ; *** LM335 ***
     orl ADCCON0, #LM335_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov x+0, R0 			    ; load lm335 reading to x
 	mov x+1, R1
 	mov x+2, #0 			
@@ -439,36 +425,60 @@ read_lm335:
 	mov y+2, #0 			
 	mov y+3, #0
     lcall div32
-    Load_y(10)
-    lcall mul32
-    Load_y(273)			    ; adjust to 273.000 C offset
+    Load_y(273000)			    ; adjust to 273.000 C offset
 	lcall sub32	                ; result of lm335 temp remains in x
+	mov temp_lm+0, x+0          ; store 3 decimal lm335 value
+    mov temp_lm+1, x+1				
+    mov temp_lm+2, x+2
+    mov temp_lm+3, x+3
+	Load_y(1000)
+	lcall div32
+	mov temp_offset, x+0		; move to temp offset to retrieve mV value
+	mov temp_offset, x+1
 
-add_lm335_to_opamp:
-    mov y+0, OPAMP_temp+0       ; load opamp temp to y
-    mov y+1, OPAMP_temp+1
-    mov y+2, OPAMP_temp+2
-    mov y+3, OPAMP_temp+3
-    ;lcall add32                 ; lm335 + opamp = real temp
+read_opamp:
+	mov temp_offset+0, #0xff
+	mov temp_offset+1, #0x00
+
+	lcall Get_mV
+	mov x+0, mV_offset+0          
+    mov x+1, mV_offset+1
+    mov x+2, #0
+    mov x+3, #0
+	
+
+;add_lm335_to_opamp:
+    ;mov y+0, OPAMP_temp+0       ; load opamp temp to y
+    ;mov y+1, OPAMP_temp+1
+    ;mov y+2, OPAMP_temp+2
+    ;mov y+3, OPAMP_temp+3
+    ;lcall add32                	; lm335 + opamp = real temp
     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
-    mov temp_mc+1, x+1
+    mov temp_mc+1, x+1				
     mov temp_mc+2, x+2
     mov temp_mc+3, x+3
 
+export_to_bcd:
+	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
+	lcall Display_formated_BCD	
+
 export_to_main:
+	mov x+0, temp_mc+0          
+    mov x+1, temp_mc+1
+    mov x+2, temp_mc+2
+    mov x+3, temp_mc+3
     Load_y(1000)
     lcall div32
-    mov tempc, x+0              ; Both tempc and x now stores temp (C)
-
-	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	lcall Display_formated_BCD
-    lcall bcd2hex 				; hex number now stored in x			
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)		
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
+
+	mov data_out, mV_offset+0
+
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */

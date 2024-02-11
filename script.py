@@ -66,13 +66,13 @@ def read_serial_data():
                 #     cm2 = command 
                 #     title_change(cm2)
             
-                if command & 0b00000001:
-                    unitchar = '°C'
-                elif command & 0b00000010:
-                    unitchar = '°F'
-                else:
-                    unitchar = '-'
-                print(f"Temp: {outval} {unitchar}")
+                # if command & 0b00000001:
+                #     unitchar = '°C'
+                # elif command & 0b00000010:
+                #     unitchar = '°F'
+                # else:
+                #     unitchar = '-'
+                print(f"Temp: {outval} {data}")
                 data_queue.put((t, float(outval)))
                 t += 1
 

@@ -40,29 +40,6 @@ L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
     pop AR0
     ret
 
-;---------------------------------;
-; Play Note Macro (input hertz of note) ;
-;---------------------------------;
-Play_Note mac high, low
-	push AR2
-	mov A, high
-	mov R2, A
-	push AR1
-	mov A, low
-	mov R1, A ;a is middle man, purpose: move h&l 
-	lcall ?Play_Note
-	pop AR1
-	pop AR2
-endmac
-
-?Play_Note:
-	
-
-
-	ret
-
-
-
     	
 ;---------------------------------;
 ; Toggles the 'E' pin in the LCD  ;
