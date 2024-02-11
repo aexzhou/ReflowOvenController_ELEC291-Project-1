@@ -85,6 +85,11 @@ seconds: 		ds 1
 pwm:			ds 1
 abort_time:		ds 1
 
+; /* Reflow profile parameters */
+ReflowTemp: 	ds 1
+ReflowTime:		ds 1
+SoakTime:		ds 1
+
 BSEG
 mf: dbit 1
 seconds_flag: dbit 1
@@ -487,7 +492,8 @@ FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
 	jnb seconds_flag, FSM_state2_funk
-	mov a, #60
+	;mov a, #60
+	mov a, SoakTime
 	clr c
 	subb a, seconds	 	; Want time to be greater than 60 seconds
 	jc FSM1_state2_done
@@ -504,7 +510,8 @@ FSM1_state2_done:
 FSM1_state3:
 	cjne a, #3, FSM1_state4
 	mov pwm, #100
-	mov a, #220
+	;mov a, #220
+	mov a, ReflowTemp
 	clr seconds_flag
 	clr c
 	subb a, tempc
@@ -518,7 +525,8 @@ FSM1_state4:
 	cjne a, #4, FSM1_state5
 	mov pwm, #20 
 	jnb seconds_flag, FSM1_state4_funk
-	mov a, #45
+	;mov a, #45
+	mov a, ReflowTime
 	clr c 
 	subb a, seconds ; when seconds is greater than 45, there will be a carry bit
 	jc FSM1_state4_done
