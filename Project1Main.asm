@@ -198,7 +198,7 @@ Timer2_ISR:
 	ljmp Timer2_ISR_done
 
 Abort_Check0:
-; Check if temperature is above 300. If so, abort
+; Check if temperature is above 240. If so, abort
 	clr c
 	mov a, tempc
 	subb a, #240						; if a is greater than 240, there will be no carry bit so we need to abort
