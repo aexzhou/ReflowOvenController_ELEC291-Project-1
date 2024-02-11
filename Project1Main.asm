@@ -357,6 +357,9 @@ Main:
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
+	mov ReflowTemp, #0
+	mov ReflowTime, #0
+	mov SoakTime, #0
 
     ; initial messages in LCD
 	Set_Cursor(1, 1)
