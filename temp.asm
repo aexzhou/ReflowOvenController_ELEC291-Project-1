@@ -7,16 +7,34 @@
 ;           20700. (The real value * 1000).
 
 TEMP_READ:
+ljmp read_led
+
+Avg_ADC:
+    Load_X(0)
+    mov R5, #100
+sum_loop_avg:
+    lcall Read_ADC
+    mov y+3, #0
+    mov y+2, #0
+    mov y+1, R1
+    mov y+0, R0
+    lcall add32
+    djnz R5, sum_loop_avg:
+    Load_y(0)
+    lcall div32
+    ret
+
+read_led:
     anl ADCCON0, #0xf0          ; read led voltage
     orl ADCCON0, #LED_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov VLED_ADC+0, R0          ; save reading to VLED_ADC
 	mov VLED_ADC+1, R1
 
 read_opamp:
     anl ADCCON0, #0xf0          ; *** OPAMP ***
     orl ADCCON0, #OPAMP_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov x+0, R0 			    ; load opamp reading to x
 	mov x+1, R1
 	mov x+2, #0 			
@@ -37,7 +55,7 @@ read_opamp:
 read_lm335:
     anl ADCCON0, #0xf0          ; *** LM335 ***
     orl ADCCON0, #LM335_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov x+0, R0 			    ; load lm335 reading to x
 	mov x+1, R1
 	mov x+2, #0 			

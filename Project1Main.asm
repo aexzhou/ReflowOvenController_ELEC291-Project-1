@@ -376,6 +376,24 @@ FSM_sys:
 ; Example:  2.07 V would be represented by the number
 ;           20700. (The real value * 1000).
 TEMP_READ:
+	ljmp read_led
+
+Avg_ADC:
+    Load_X(0)
+    mov R5, #100
+sum_loop_avg:
+    lcall Read_ADC
+    mov y+3, #0
+    mov y+2, #0
+    mov y+1, R1
+    mov y+0, R0
+    lcall add32
+    djnz R5, sum_loop_avg:
+    Load_y(0)
+    lcall div32
+    ret
+
+read_led:
     anl ADCCON0, #0xf0          ; read led voltage
     orl ADCCON0, #LED_PORT
     lcall Read_ADC
