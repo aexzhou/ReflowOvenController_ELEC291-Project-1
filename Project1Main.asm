@@ -24,51 +24,40 @@ TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
 
-org 0000H
-   ljmp Main
+; /*** PORT DEFINITIONS ***/
+LCD_RS 			equ P1.3
+LCD_E  			equ P1.4
+LCD_D4 			equ P0.0
+LCD_D5 			equ P0.1
+LCD_D6 			equ P0.2
+LCD_D7 			equ P0.3
+PWM_OUT 		equ P1.0
+START_BUTTON 	equ P0.4
+; Analog Input Port Numbering
+LED_PORT 		equ 0x00			; AIN port numbers
+LM335_PORT 		equ 0x05
+OPAMP_PORT 		equ 0x07
 
-; /* TIMER2 ENABLE */
-org 0x002B
+; /*** VECTORS ***/
+org 0000H
+   	ljmp Main
+
+org 002BH					; timer 2 enable
 	ljmp Timer2_ISR
 
+org 3000H					; lookup table stored at APROM address starting 0x4000
+; 	$NOLIST
+ 	$include(thermodata.inc)
+; 	$List
 
-;                     1234567890123456    <- This helps determine the location of the counter
-test_message:     db '****LOADING*****', 0
-value_message:    db 'TEMP:      ', 0
-cel_message:	  db 'CELCIUS  READING',0
-fah_message:      db 'FARENHET READING',0
-abort_message: 	  db 'ABORTABORTABORT ', 0
-
-CSEG
-
-; /* PORT DEFINITIONS */
-LCD_RS equ P1.3
-LCD_E  equ P1.4
-LCD_D4 equ P0.0
-LCD_D5 equ P0.1
-LCD_D6 equ P0.2
-LCD_D7 equ P0.3
-
-PWM_OUT equ P1.0
-START_BUTTON equ P0.4
-; Analog Input Port Numbering
-LED_PORT equ 0x00			; AIN port numbers
-LM335_PORT equ 0x05
-OPAMP_PORT equ 0x07
-
-$NOLIST
-$include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
-$LIST
-
-; /* MATH.INC STUFFS */
+; /*** DIRECT ACCESS VARIABLES @RAM 0x30 -> 0x7F ***/
 DSEG at 30H
-x:   		ds 4
-y:   		ds 4
-data_out:   ds 1
+x:   			ds 4		; for math
+y:   			ds 4
+data_out:   	ds 2		; for python
+bcd: 			ds 5		; for display
 
-bcd: 		ds 5
-;  /* TEMPERATURE VARIABLES */
-VLED_ADC: 		ds 2
+VLED_ADC: 		ds 2		; for temperature 
 dtemp:  		ds 2
 tempc: 			ds 1
 temp_mc:		ds 4
@@ -77,38 +66,42 @@ temp_lm:   		ds 4
 temp_offset:	ds 2
 mV_offset:  	ds 2
 
-; /* FSM STATES */
-FSM1_state:  ds 1
+FSM1_state:  	ds 1		; fsm states
 
-; /* TIME CHECK AND PWM */
-pwm_counter:	ds 1
+pwm_counter:	ds 1		; time check and pwm
 count10ms: 		ds 1
 seconds: 		ds 1
 pwm:			ds 1
 abort_time:		ds 1
 
-; /* Reflow profile parameters */
-ReflowTemp: 	ds 1
+ReflowTemp: 	ds 1		; reflow profile parameters
 ReflowTime:		ds 1
 SoakTime:		ds 1
 
-BSEG
-mf: dbit 1
-seconds_flag: dbit 1
-s_flag: dbit 1
+; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
+BSEG 
+mf: 			dbit 1
+seconds_flag: 	dbit 1
+s_flag: 		dbit 1
 
+; /*** CODE SEGMENT ***/
+CSEG
+;                     1234567890123456    <- This helps determine the location of the counter
+test_message:     db '****LOADING*****', 0
+value_message:    db 'TEMP:      ', 0
+cel_message:	  db 'CELCIUS  READING',0
+fah_message:      db 'FARENHET READING',0
+abort_message: 	  db 'ABORTABORTABORT ', 0
 
 $NOLIST
+$include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
+$include(adc_flash.inc)
 $include(math32.inc)
 $LIST
 
-; $NOLIST
-; $include(thermodata.inc)
-; $LIST
 
 InitAll:
 	; /*** SERIAL PORT INITIALIZATION ***/
-
 	mov	P3M1,#0x00  			; Configure all the pins for biderectional I/O
 	mov	P3M2,#0x00
 	mov	P1M1,#0x00
@@ -134,7 +127,6 @@ InitAll:
 	setb TR1
 
 	; /*** INITIALIZE THE REST ***/
-
 	orl	CKCON, #0x10 			; CLK is the input for timer 1
 	orl	PCON, #0x80 			; Bit SMOD=1, double baud rate
 	mov	SCON, #0x52
@@ -162,6 +154,7 @@ InitAll:
 	orl AINDIDS, #0b10000000 	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
+
 
 ;----------------------------------------------------------------;
 ; 					TIMER 2 INITIALIZATION
@@ -284,7 +277,10 @@ SendBin:
 	lcall putchar
 
 	clr A					; Sends data_out
-	mov a, data_out 
+	mov a, data_out+0 
+	lcall putchar
+	clr A
+	mov a, data_out+1
 	lcall putchar
 	ret
 
@@ -355,7 +351,7 @@ Read_ADC:
 	ret
 
 Main:
-    mov SP, #0x7F ; Set the stack pointer to the begining of idata
+    mov SP, #0x7F 	; Set the stack pointer to the begining of idata
     
     lcall InitAll
     lcall LCD_4BIT
@@ -374,7 +370,7 @@ Main:
 	Set_Cursor(2, 1)
     Send_Constant_String(#value_message)
 
-	mov data_out, #0b00000001
+	;mov data_out, #0b00000001
 
 ;Forever: ;avaliable: r2, r3
 FSM_sys:
@@ -437,15 +433,17 @@ read_lm335:
 	mov temp_offset, x+1
 
 read_opamp:
-	mov temp_offset+0, #0xff
-	mov temp_offset+1, #0x00
+;test
+	mov temp_offset, #0x0002
 
-	lcall Get_mV
+	lcall Load_Thermodata
 	mov x+0, mV_offset+0          
     mov x+1, mV_offset+1
     mov x+2, #0
     mov x+3, #0
-	
+
+	mov data_out+0, mV_offset+0
+	mov data_out+1, mV_offset+1
 
 ;add_lm335_to_opamp:
     ;mov y+0, OPAMP_temp+0       ; load opamp temp to y
@@ -476,8 +474,6 @@ Export:							; Data export to python
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
-
-	mov data_out, mV_offset+0
 
     lcall SendBin				; temp_mc and data_out to python
 

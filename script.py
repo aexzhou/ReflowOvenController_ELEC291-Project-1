@@ -57,9 +57,9 @@ def read_serial_data():
     t = 0
     while not shutdown_event.is_set():
         if ser.in_waiting > 0:
-            data = ser.read(5)
-            if len(data) == 5:
-                value, command = struct.unpack('<iB', data)
+            data = ser.read(6)
+            if len(data) == 6:
+                value, command = struct.unpack('<iH', data)
                 outval = format(value/1000, '.3f')
 
                 # if command != cm2:
@@ -72,7 +72,9 @@ def read_serial_data():
                 #     unitchar = '°F'
                 # else:
                 #     unitchar = '-'
-                print(f"Temp: {outval} {data}")
+                tempcom = hex(command)
+
+                print(f"Temp: {outval} {tempcom}")
                 data_queue.put((t, float(outval)))
                 t += 1
 
