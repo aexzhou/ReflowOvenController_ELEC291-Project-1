@@ -1,5 +1,5 @@
 ; Contains mV offset for Thermocouple
-; Stored in APROM location: 0x4000
+; Stored in APROM location: 0x3000
 thermodata:
     DW  0, 39, 79, 119, 158, 198, 238, 277, 317, 357, 397, 437, 477, 517, 557, 597 
     DW  637, 677, 718, 758, 798, 838, 879, 919, 960, 1000, 1041, 1081, 1122, 1163, 1203, 1244

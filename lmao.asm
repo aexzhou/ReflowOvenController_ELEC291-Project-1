@@ -39,7 +39,7 @@ read_opamp:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(207000)              ; load const vled ref into y      
+    Load_y(2070)              ; load const vled ref into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import vled reading into y
 	mov y+1, VLED_ADC+1         
@@ -88,6 +88,11 @@ export_to_main:
     lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)
     
+
+
+
+
+
 
 
 

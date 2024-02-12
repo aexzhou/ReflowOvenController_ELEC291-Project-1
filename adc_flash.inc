@@ -37,11 +37,11 @@ lowval:
     djnz R0, lowval         ; traverse until at target index
     clr a
     movc a, @a+dptr         ; extract data
-    mov mV_offset+0, a
+    mov mV_offset+1, a
     inc dptr
     clr a
     movc a, @a+dptr
-    mov mV_offset+1, a
+    mov mV_offset+0, a
 
     pop AR1
     pop AR0

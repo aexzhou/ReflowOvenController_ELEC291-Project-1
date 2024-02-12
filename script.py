@@ -11,7 +11,7 @@ import threading
 
 # Initialize serial connection
 ser = serial.Serial(
-    port='COM3',  # Adjust as needed
+    port='COM5',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -62,16 +62,6 @@ def read_serial_data():
                 value, command = struct.unpack('<iH', data)
                 outval = format(value/1000, '.3f')
 
-                # if command != cm2:
-                #     cm2 = command 
-                #     title_change(cm2)
-            
-                # if command & 0b00000001:
-                #     unitchar = '°C'
-                # elif command & 0b00000010:
-                #     unitchar = '°F'
-                # else:
-                #     unitchar = '-'
                 tempcom = hex(command)
 
                 print(f"Temp: {outval} {tempcom}")

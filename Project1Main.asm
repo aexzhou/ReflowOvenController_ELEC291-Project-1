@@ -23,6 +23,8 @@ TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
+GAIN				EQU 330
+V2C_DIVISOR			EQU (330*41)
 
 ; /*** PORT DEFINITIONS ***/
 LCD_RS 			equ P1.3
@@ -78,6 +80,9 @@ ReflowTemp: 	ds 1		; reflow profile parameters
 ReflowTime:		ds 1
 SoakTime:		ds 1
 
+Val_test:		ds 4
+Val_temp:		ds 4
+
 ; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
 BSEG 
 mf: 			dbit 1
@@ -97,6 +102,7 @@ $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $include(adc_flash.inc)
 $include(math32.inc)
+$include(troubleshooter.inc) 
 $LIST
 
 
@@ -277,7 +283,7 @@ SendBin:
 	lcall putchar
 
 	clr A					; Sends data_out
-	mov a, data_out+0 
+	mov a, data_out+0
 	lcall putchar
 	clr A
 	mov a, data_out+1
@@ -326,8 +332,8 @@ Display_formated_BCD: ;4 dig
 	Display_char(#0xDF)
 	Set_Cursor(2, 16)
 	Display_char(#'C')
-
 	ret
+
 
 ; /* READ ADC */
 Read_ADC:
@@ -384,7 +390,7 @@ FSM_sys:
 TEMP_READ:
 	ljmp read_led
 
-Avg_ADC:
+Avg_ADC:						; function for ADC noise reduction
     Load_X(0)
     mov R5, #255
 sum_loop_avg:
@@ -414,7 +420,7 @@ read_lm335:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(207000)               ; load const vled ref into y      
+    Load_y(207000)              ; load const vled ref into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import vled reading into y
 	mov y+1, VLED_ADC+1         
@@ -423,20 +429,32 @@ read_lm335:
     lcall div32
     Load_y(273000)			    ; adjust to 273.000 C offset
 	lcall sub32	                ; result of lm335 temp remains in x
-	mov temp_lm+0, x+0          ; store 3 decimal lm335 value
+	mov temp_lm+0, x+0          ; store 3 decimal lm335 value for later
     mov temp_lm+1, x+1				
     mov temp_lm+2, x+2
     mov temp_lm+3, x+3
-	Load_y(1000)
-	lcall div32
-	mov temp_offset, x+0		; move to temp offset to retrieve mV value
-	mov temp_offset, x+1
 
 read_opamp:
-;test
-	mov temp_offset, #0x0002
+	anl ADCCON0, #0xf0          ; *** OPAMP ***
+    orl ADCCON0, #OPAMP_PORT	; GAIN = 330 
+	lcall Avg_ADC
+	mov x+0, R0 			    ; load opamp reading to x
+	mov x+1, R1
+	mov x+2, #0 			
+	mov x+3, #0
+    Load_y(2070)                ; load const vled ref (2070 mV) into y      
+    lcall mul32
+    mov y+0, VLED_ADC+0 	    ; import led adc reading into y
+	mov y+1, VLED_ADC+1         
+	mov y+2, #0 			
+	mov y+3, #0
+    lcall div32                 ; x value now stores OPAMP V in mV
+	Load_y(1000)				
+	lcall mul32					; turn mV to uV
+	Load_y(V2C_DIVISOR)
+	lcall div32					; deg C reading now in x
+	
 
-	lcall Load_Thermodata
 	mov x+0, mV_offset+0          
     mov x+1, mV_offset+1
     mov x+2, #0
@@ -457,8 +475,14 @@ read_opamp:
     mov temp_mc+3, x+3
 
 export_to_bcd:
-	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	lcall Display_formated_BCD	
+	;lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
+	;lcall Display_formated_BCD	
+	
+	mov Val_test+0, mV_offset+0          ; store result in temp_mc (for python)
+    mov Val_test+1, mV_offset+1		
+    mov Val_test+2, #0
+    mov Val_test+3, #0
+	lcall Display_Val
 
 export_to_main:
 	mov x+0, temp_mc+0          
