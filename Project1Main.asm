@@ -100,6 +100,7 @@ temp_message:	  db 'OVEN TEMP:      ', 0
 fah_message:      db 'FARENHET READING', 0
 abort_message: 	  db 'ABORTABORTABORT ', 0
 state_message:	  db 'Current State:  ', 0
+error_message:	  db 'State Error     ', 0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -207,6 +208,7 @@ Timer2_ISR:
 	mov pwm_counter, #0
 	inc seconds ; It is super easy to keep a seconds count here
 	setb s_flag
+
 	mov a, FSM1_state
 	cjne a, #0, Abort_Check0			; For abort check, the abort should not trigger if you are in state 0
 	ljmp Timer2_ISR_done
@@ -234,8 +236,9 @@ Abort_Check2:
 	mov a, abort_time
 	clr c
 	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jnc Timer2_ISR_done					; if there is a carry 
+	jc Timer2_ISR_done					; if there is a carry 
 	mov FSM1_state, #10
+	ljmp Timer2_ISR_done
 
 Timer2_ISR_abort_done:
 	mov abort_time, #0
@@ -400,9 +403,10 @@ Main:
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
-	mov ReflowTemp, #0
-	mov ReflowTime, #0
-	mov SoakTime, #0
+	mov ReflowTemp, #220
+	mov ReflowTime, #30
+	mov SoakTime, #60
+	mov abort_time, #0
 
     ; initial messages in LCD
 	Set_Cursor(1, 1)
@@ -535,11 +539,19 @@ FSM1:
 	mov a, FSM1_state
 	Set_Cursor(1,1)
 	Send_Constant_String(#state_message)
+	Set_Cursor(2,12)
+	mov Val_test+0, tempc          ; store result in temp_mc (for python)
+    mov Val_test+1, #0	
+    mov Val_test+2, #0
+    mov Val_test+3, #0
+	lcall Display_Val
 
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
+	mov FSM1_state, #1
+	ljmp FSM1_state0_done
 	mov pwm, #0
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x00)
 	clr seconds_flag
 	; check for push button input
@@ -553,7 +565,7 @@ FSM1_state0_done:
 FSM1_state1:
 	cjne a, #1, FSM1_state2
 	mov pwm, #100
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x01)
 	mov seconds, #0
 	mov a, #150
@@ -568,7 +580,7 @@ FSM1_state1_done:
 FSM1_state2:
 	cjne a, #2, FSM1_state3
 	mov pwm, #20
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x02)
 	jnb seconds_flag, FSM_state2_funk
 	;mov a, #60
@@ -589,7 +601,7 @@ FSM1_state2_done:
 FSM1_state3:
 	cjne a, #3, FSM1_state4
 	mov pwm, #100
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x03)
 	;mov a, #220
 	mov a, ReflowTemp
@@ -605,7 +617,7 @@ FSM1_state3_done:
 FSM1_state4:
 	cjne a, #4, FSM1_state5
 	mov pwm, #20 
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x04)
 	jnb seconds_flag, FSM1_state4_funk
 	;mov a, #45
@@ -626,7 +638,7 @@ FSM1_state4_done:
 FSM1_state5:
 	cjne a, #5, FSM1_abort_state		; if the state is not in 0-5, then it must be 10 (aka the abort state)
 	mov pwm, #0
-	Set_Cursor(1,14)
+	Set_Cursor(1,15)
 	Display_BCD(#0x04)
 	mov a, #60
 	clr c
@@ -638,11 +650,18 @@ FSM1_state5_done:
 	ljmp FSM_sys
 
 FSM1_abort_state:						; When the abort state is triggered, turn everything off and remain in this state utill you reset
+	cjne a, #10, FSM1_error				; if state is somehow neither 0-5 or 10, go to state error
 	mov pwm, #0
 	Set_Cursor(1,1)
 	Send_Constant_String(#abort_message)
 
 	ljmp FSM1_abort_state
+
+FSM1_error:
+	mov pwm, #0
+	Set_Cursor(1,1)
+	Send_Constant_String(#error_message)
+	ljmp FSM1_error
 
 END
 
