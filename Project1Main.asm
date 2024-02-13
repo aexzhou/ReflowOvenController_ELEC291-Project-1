@@ -107,6 +107,7 @@ $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $include(adc_flash.inc)
 $include(math32.inc)
 $include(troubleshooter.inc) 
+$include(temp_read.inc)
 $LIST
 
 
@@ -513,6 +514,7 @@ export_to_main:					; exports temp reading to rest of code
     Load_y(1000)
     lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)		
+;lcall TEMP_READ
 
 export_to_bcd:					; sends temp reading in C to bcd
 	lcall hex2bcd
