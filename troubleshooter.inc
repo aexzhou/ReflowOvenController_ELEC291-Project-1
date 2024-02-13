@@ -2,6 +2,12 @@ $NOLIST
 ;----------------------------------------------------
 ; Reads whatever values are in the 4 bytes of Val_test 
 ; and displays it on bcd. Good for troubleshooting
+; Example:
+	; mov Val_test+0, mV_offset+0          ; store result in temp_mc (for python)
+    ; mov Val_test+1, mV_offset+1		
+    ; mov Val_test+2, #0
+    ; mov Val_test+3, #0
+	; lcall Display_Val
 ;----------------------------------------------------
 Troubleshoot_msg:     db 'hex in Val_test:', 0
 

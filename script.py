@@ -10,8 +10,8 @@ import math
 import threading
 
 # Initialize serial connection
-ser = serial.Serial(
-    port='COM5',  # Adjust as needed
+ser = serial.Serial( 
+    port='COM4',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -64,7 +64,7 @@ def read_serial_data():
 
                 tempcom = hex(command)
 
-                print(f"Temp: {outval} {tempcom}")
+                print(f"Temp: {outval} | data_out[15:0]: {tempcom}")
                 data_queue.put((t, float(outval)))
                 t += 1
 

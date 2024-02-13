@@ -420,7 +420,7 @@ read_lm335:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(207000)              ; load const vled ref into y      
+    Load_y(204000)              ; load const vled ref into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import vled reading into y
 	mov y+1, VLED_ADC+1         
@@ -442,6 +442,8 @@ read_opamp:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
+	mov data_out+0, R0			
+	mov data_out+1, R1
     Load_y(2070)                ; load const vled ref (2070 mV) into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import led adc reading into y
@@ -451,39 +453,36 @@ read_opamp:
     lcall div32                 ; x value now stores OPAMP V in mV
 	Load_y(1000)				
 	lcall mul32					; turn mV to uV
+	; mov data_out+0, x+0			; use for reverse checking
+	; mov data_out+1, x+1
 	Load_y(V2C_DIVISOR)
 	lcall div32					; deg C reading now in x
+	mov temp_offset+0, x+0		; use for reverse checking
+	mov temp_offset+1, x+1
 	
+	Load_y(1000)
+	lcall mul32					; conv to mV again to add to lm335 data
 
-	mov x+0, mV_offset+0          
-    mov x+1, mV_offset+1
-    mov x+2, #0
-    mov x+3, #0
-
-	mov data_out+0, mV_offset+0
-	mov data_out+1, mV_offset+1
-
-;add_lm335_to_opamp:
-    ;mov y+0, OPAMP_temp+0       ; load opamp temp to y
-    ;mov y+1, OPAMP_temp+1
-    ;mov y+2, OPAMP_temp+2
-    ;mov y+3, OPAMP_temp+3
-    ;lcall add32                	; lm335 + opamp = real temp
+add_lm335_to_opamp:
+    mov y+0, temp_lm+0       	; load lm335 temp to y
+    mov y+1, temp_lm+1
+    mov y+2, temp_lm+2
+    mov y+3, temp_lm+3
+    lcall add32                	; lm335 + opamp = real temp
     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
     mov temp_mc+1, x+1				
     mov temp_mc+2, x+2
     mov temp_mc+3, x+3
 
-export_to_bcd:
-	;lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	;lcall Display_formated_BCD	
-	
-	mov Val_test+0, mV_offset+0          ; store result in temp_mc (for python)
-    mov Val_test+1, mV_offset+1		
-    mov Val_test+2, #0
-    mov Val_test+3, #0
-	lcall Display_Val
+	mov temp_mc+0, temp_lm+0
+    mov temp_mc+1, temp_lm+1				
+    mov temp_mc+2, temp_lm+2
+    mov temp_mc+3, temp_lm+3
 
+export_to_bcd:
+	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
+	lcall Display_formated_BCD	
+	
 export_to_main:
 	mov x+0, temp_mc+0          
     mov x+1, temp_mc+1
