@@ -1,3 +1,32 @@
+; Assembly code example for N76E003 I2C Master mode operation
+; Note: This is a simplified example and might need adjustments for actual use.
+
+ORG 0000H ; Start of program
+
+; Initialization
+MOV A, #13H            ; Load I2C clock rate value into Accumulator
+MOV I2CLK, A           ; Set I2C clock rate
+SETB I2CEN             ; Enable I2C module by setting the I2CEN bit in I2CON register
+
+; Start condition
+SETB STA               ; Generate start condition by setting the STA bit in I2CON
+JNB SI, $              ; Wait for SI to be set indicating operation complete
+CLR SI                 ; Clear SI flag to proceed
+
+; Send device address and write command
+MOV A, #EEPROM_SLA     ; Load EEPROM slave address with write command into Accumulator
+MOV I2DAT, A           ; Set slave address and R/W bit in I2DAT register
+CLR SI                 ; Clear SI flag to start transmission
+JNB SI, $              ; Wait for SI to be set indicating operation complete
+
+; Error handling and loop for data transmission would go here
+; ...
+
+; Stop condition
+SETB STO               ; Generate stop condition by setting the STO bit in I2CON
+JNB STO, $             ; Wait for hardware to clear STO indicating stop condition has been transmitted
+CLR SI                 ; Clear SI flag
+
 ; Example Assembly Snippet for N76E003: Master Initiates Communication with Slave
 
 ; Assume I2C has been initialized and a start condition has been generated
@@ -35,34 +64,7 @@ ERROR_HANDLER:
 ; Handle error condition here, e.g., by logging the error, resetting the I2C interface, or trying again
 ; ...
 
-; Assembly code example for N76E003 I2C Master mode operation
-; Note: This is a simplified example and might need adjustments for actual use.
 
-ORG 0000H ; Start of program
-
-; Initialization
-MOV A, #13H            ; Load I2C clock rate value into Accumulator
-MOV I2CLK, A           ; Set I2C clock rate
-SETB I2CEN             ; Enable I2C module by setting the I2CEN bit in I2CON register
-
-; Start condition
-SETB STA               ; Generate start condition by setting the STA bit in I2CON
-JNB SI, $              ; Wait for SI to be set indicating operation complete
-CLR SI                 ; Clear SI flag to proceed
-
-; Send device address and write command
-MOV A, #EEPROM_SLA     ; Load EEPROM slave address with write command into Accumulator
-MOV I2DAT, A           ; Set slave address and R/W bit in I2DAT register
-CLR SI                 ; Clear SI flag to start transmission
-JNB SI, $              ; Wait for SI to be set indicating operation complete
-
-; Error handling and loop for data transmission would go here
-; ...
-
-; Stop condition
-SETB STO               ; Generate stop condition by setting the STO bit in I2CON
-JNB STO, $             ; Wait for hardware to clear STO indicating stop condition has been transmitted
-CLR SI                 ; Clear SI flag
 
 ; Assembly snippet for initializing the I2C module and generating a start condition on N76E003
 
