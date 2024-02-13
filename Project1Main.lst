@@ -70,7 +70,7 @@
 007E             54   ; Analog Input Port Numbering
 007E             55   LED_PORT equ 0x00                        ; AIN port numbers
 007E             56   LM335_PORT equ 0x05
-007E             57   OPAMP_PORT equ 0x01
+007E             57   OPAMP_PORT equ 0x07
 007E             58   
                  60   	$LIST
 0146             62   
@@ -526,7 +526,7 @@
 0676            405   
 0676            406   read_opamp:
 0676 53E8F0     407       anl ADCCON0, #0xf0          ; *** OPAMP ***
-0679 43E801     408       orl ADCCON0, #OPAMP_PORT
+0679 43E807     408       orl ADCCON0, #OPAMP_PORT
 067C 1205C6     409       lcall Read_ADC
 067F 8830       410       mov x+0, R0                              ; load opamp reading to x
 0681 8931       411            mov x+1, R1
@@ -574,10 +574,10 @@
 06F6 753600     442            mov y+2, #low (10 / 0x10000) 
 06F9 753700     442            mov y+3, #high(10 / 0x10000) 
 06FC 1202C0     443       lcall mul32
-06FF 753468     444            mov y+0, #low (273000 % 0x10000) 
-0702 75352A     444            mov y+1, #high(273000 % 0x10000) 
-0705 753604     444            mov y+2, #low (273000 / 0x10000) 
-0708 753700     444            mov y+3, #high(273000 / 0x10000)                            ; adjust to 273.000 C offset
+06FF 753411     444            mov y+0, #low (273 % 0x10000) 
+0702 753501     444            mov y+1, #high(273 % 0x10000) 
+0705 753600     444            mov y+2, #low (273 / 0x10000) 
+0708 753700     444            mov y+3, #high(273 / 0x10000)                       ; adjust to 273.000 C offset
 070B 12022C     445            lcall sub32                     ; result of lm335 temp remains in x
 070E            446   
 070E            447   add_lm335_to_opamp:
