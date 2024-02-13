@@ -344,25 +344,28 @@ Display_formated_BCD: ;4 dig
 	ret
 
 Display_temp_BCD: ;4 dig 
+	push acc
+	mov a, bcd+1
+	cjne a, #0, Display_temp_BCD2
+	ljmp Display_temp_BCD3
+Display_temp_BCD2:
 	Set_Cursor(2, 1)
     Send_Constant_String(#temp_message)
-	Set_Cursor(2, 7)
-	Display_BCD(bcd+2)
-	Set_Cursor(2, 9)
+	Set_Cursor(2, 11)
 	Display_BCD(bcd+1)
-	Set_Cursor(2, 10)
-	Display_BCD(bcd+1)
-	
-	Set_Cursor(2, 12)
-	Display_BCD(bcd+0)
-	Set_Cursor(2, 10)
-	Display_char(#'.')
-	Set_Cursor(2, 7)
+	Set_Cursor(2, 11)
 	Display_char(#0x20)
+	Set_Cursor(2, 13)
+	Display_BCD(bcd+0)
+Display_temp_BCD3:
+	Set_Cursor(2, 12)
+	Display_char(#0x20)
+Display_temp_BCD_done:
 	Set_Cursor(2, 15)
-	Display_char(#0xDF)
+	Display_char(#0xDF)		; deg symbol
 	Set_Cursor(2, 16)
 	Display_char(#'C')
+	pop acc
 	ret
 
 
@@ -497,13 +500,8 @@ add_lm335_to_opamp:
     mov temp_mc+1, x+1				
     mov temp_mc+2, x+2
     mov temp_mc+3, x+3
-
-export_to_bcd:
-	; lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	; lcall Display_temp_BCD
-	lcall Display_x	
 	
-export_to_main:
+export_to_main:					; exports temp reading to rest of code
 	mov x+0, temp_mc+0          
     mov x+1, temp_mc+1
     mov x+2, temp_mc+2
@@ -512,12 +510,15 @@ export_to_main:
     lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)		
 
+export_to_bcd:					; sends temp reading in C to bcd
+	lcall hex2bcd
+	lcall Display_temp_BCD
+
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
-
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */
