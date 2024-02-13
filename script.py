@@ -57,14 +57,14 @@ def read_serial_data():
     t = 0
     while not shutdown_event.is_set():
         if ser.in_waiting > 0:
-            data = ser.read(6)
-            if len(data) == 6:
-                value, command = struct.unpack('<iH', data)
+            data = ser.read(8)
+            if len(data) == 8:
+                value, command = struct.unpack('<ii', data)
                 outval = format(value/1000, '.3f')
 
-                tempcom = hex(command)
+                #tempcom = hex(command)
 
-                print(f"Temp: {outval} | data_out[15:0]: {tempcom}")
+                print(f"Temp: {outval} | data_out[31:0]: {command}")
                 data_queue.put((t, float(outval)))
                 t += 1
 

@@ -57,7 +57,7 @@ org 3000H					; lookup table stored at APROM address starting 0x4000
 DSEG at 30H
 x:   			ds 4		; for math
 y:   			ds 4
-data_out:   	ds 2		; for python
+data_out:   	ds 4		; for python
 bcd: 			ds 5		; for display
 
 VLED_ADC: 		ds 2		; for temperature 
@@ -289,6 +289,12 @@ SendBin:
 	clr A
 	mov a, data_out+1
 	lcall putchar
+	clr A					; Sends data_out
+	mov a, data_out+2
+	lcall putchar
+	clr A
+	mov a, data_out+3
+	lcall putchar
 	ret
 
 ASCII_CHAR: 
@@ -445,6 +451,8 @@ read_opamp:
 	mov x+3, #0
 	mov data_out+0, R0			
 	mov data_out+1, R1
+	mov data_out+2, #0
+	mov data_out+3, #0
     Load_y(2070)                ; load const vled ref (2070 mV) into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import led adc reading into y
