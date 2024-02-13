@@ -23,8 +23,9 @@ TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
-GAIN				EQU 330
-V2C_DIVISOR			EQU (330*41)
+GAIN				EQU 25
+;V2C_DIVISOR			EQU (GAIN*41)
+V2C_DIVISOR			EQU 1051
 
 ; /*** PORT DEFINITIONS ***/
 LCD_RS 			equ P1.3
@@ -158,7 +159,7 @@ InitAll:
 	orl ADCCON0, #0x07 			; Select channel 7
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #AINCONFIG 	; P1.1 is analog input
+	orl AINDIDS, #0b1000000	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
 
@@ -427,7 +428,7 @@ read_lm335:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(204000)              ; load const vled ref into y      
+    Load_y(260000)              ; load const vled ref into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import vled reading into y
 	mov y+1, VLED_ADC+1         
@@ -443,7 +444,7 @@ read_lm335:
 
 read_opamp:
 	anl ADCCON0, #0xf0          ; *** OPAMP ***
-    orl ADCCON0, #OPAMP_PORT	; GAIN = 330 
+    orl ADCCON0, #OPAMP_PORT	; 
 	lcall Avg_ADC
 	mov x+0, R0 			    ; load opamp reading to x
 	mov x+1, R1
@@ -453,44 +454,53 @@ read_opamp:
 	mov data_out+1, R1
 	mov data_out+2, #0
 	mov data_out+3, #0
-    Load_y(2070)                ; load const vled ref (2070 mV) into y      
+	
+    Load_y(2600)                ; load const vled ref (2070 mV) into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import led adc reading into y
-	mov y+1, VLED_ADC+1         
+	mov y+1, VLED_ADC+1      	   
 	mov y+2, #0 			
 	mov y+3, #0
     lcall div32                 ; x value now stores OPAMP V in mV
+
+	; mov data_out+0, x+0			
+	; mov data_out+1, x+1
+	; mov data_out+2, x+2
+	; mov data_out+3, x+3
+
+
+
 	Load_y(1000)				
 	lcall mul32					; turn mV to uV
-	; mov data_out+0, x+0			; use for reverse checking
-	; mov data_out+1, x+1
 	Load_y(V2C_DIVISOR)
-	lcall div32					; deg C reading now in x
-	mov temp_offset+0, x+0		; use for reverse checking
-	mov temp_offset+1, x+1
 	
-	Load_y(1000)
-	lcall mul32					; conv to mV again to add to lm335 data
+	lcall div32					; deg C reading now in x
 
-add_lm335_to_opamp:
-    mov y+0, temp_lm+0       	; load lm335 temp to y
-    mov y+1, temp_lm+1
-    mov y+2, temp_lm+2
-    mov y+3, temp_lm+3
-    lcall add32                	; lm335 + opamp = real temp
-    mov temp_mc+0, x+0          ; store result in temp_mc (for python)
-    mov temp_mc+1, x+1				
-    mov temp_mc+2, x+2
-    mov temp_mc+3, x+3
+	; mov data_out+0, x+0			
+	; mov data_out+1, x+1
+	; mov data_out+2, x+2
+	; mov data_out+3, x+3
+	; mov temp_offset+0, x+0		; use for reverse checking
+	; mov temp_offset+1, x+1	
+	
+	; Load_y(1000)
+	; lcall mul32					; conv to mV again to add to lm335 data
 
-	mov temp_mc+0, temp_lm+0
-    mov temp_mc+1, temp_lm+1				
-    mov temp_mc+2, temp_lm+2
-    mov temp_mc+3, temp_lm+3
+; add_lm335_to_opamp:
+;     mov y+0, temp_lm+0       	; load lm335 temp to y
+;     mov y+1, temp_lm+1
+;     mov y+2, temp_lm+2
+;     mov y+3, temp_lm+3
+;     lcall add32                	; lm335 + opamp = real temp
+     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
+     mov temp_mc+1, x+1				
+     mov temp_mc+2, x+2
+     mov temp_mc+3, x+3
 
 export_to_bcd:
-	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	lcall Display_formated_BCD	
+	; lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
+	; lcall Display_formated_BCD
+	lcall Display_x	
 	
 export_to_main:
 	mov x+0, temp_mc+0          
