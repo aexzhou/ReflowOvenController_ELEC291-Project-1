@@ -23,15 +23,76 @@ TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
+GAIN				EQU 25
+;V2C_DIVISOR			EQU (GAIN*41)
+V2C_DIVISOR			EQU 1051
 
+; /*** PORT DEFINITIONS ***/
+LCD_RS 			equ P1.3
+LCD_E  			equ P1.4
+LCD_D4 			equ P0.0
+LCD_D5 			equ P0.1
+LCD_D6 			equ P0.2
+LCD_D7 			equ P0.3
+PWM_OUT 		equ P1.0
+START_BUTTON 	equ P0.4
+; Analog Input Port Numbering
+LED_PORT 		equ 0x00			; AIN port numbers
+LM335_PORT 		equ 0x05
+OPAMP_PORT 		equ 0x07
+AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
+
+; /*** VECTORS ***/
 org 0000H
-   ljmp Main
+   	ljmp Main
 
-; /* TIMER2 ENABLE */
-org 0x002B
+org 002BH					; timer 2 enable
 	ljmp Timer2_ISR
 
+org 3000H					; lookup table stored at APROM address starting 0x4000
+; 	$NOLIST
+ 	$include(thermodata.inc)
+; 	$List
 
+; /*** DIRECT ACCESS VARIABLES @RAM 0x30 -> 0x7F ***/
+DSEG at 30H
+x:   			ds 4		; for math
+y:   			ds 4
+data_out:   	ds 4		; for python
+bcd: 			ds 5		; for display
+
+VLED_ADC: 		ds 2		; for temperature 
+dtemp:  		ds 2
+tempc: 			ds 1
+temp_mc:		ds 4
+OPAMP_temp: 	ds 4
+temp_lm:   		ds 4
+temp_offset:	ds 2
+mV_offset:  	ds 2
+
+FSM1_state:  	ds 1		; fsm states
+
+pwm_counter:	ds 1		; time check and pwm
+count10ms: 		ds 1
+seconds: 		ds 1
+pwm:			ds 1
+abort_time:		ds 1
+
+ReflowTemp: 	ds 1		; reflow profile parameters
+ReflowTime:		ds 1
+SoakTime:		ds 1
+
+Val_test:		ds 4
+Val_temp:		ds 4
+
+; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
+BSEG 
+mf: 			dbit 1
+seconds_flag: 	dbit 1
+s_flag: 		dbit 1
+
+; /*** CODE SEGMENT ***/
+CSEG
 ;                     1234567890123456    <- This helps determine the location of the counter
 test_message:     db '****LOADING*****', 0
 value_message:    db 'TEMP:      ', 0
@@ -39,70 +100,16 @@ cel_message:	  db 'CELCIUS  READING',0
 fah_message:      db 'FARENHET READING',0
 abort_message: 	  db 'ABORTABORTABORT ', 0
 
-CSEG
-
-; /* PORT DEFINITIONS */
-LCD_RS equ P1.3
-LCD_E  equ P1.4
-LCD_D4 equ P0.0
-LCD_D5 equ P0.1
-LCD_D6 equ P0.2
-LCD_D7 equ P0.3
-
-PWM_OUT equ P1.0
-START_BUTTON equ P0.4
-; Analog Input Port Numbering
-LED_PORT equ 0x00			; AIN port numbers
-LM335_PORT equ 0x05
-OPAMP_PORT equ 0x07
-
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
-$LIST
-
-; /* MATH.INC STUFFS */
-DSEG at 30H
-x:   		ds 4
-y:   		ds 4
-data_out:   ds 1
-
-bcd: 		ds 5
-temp_out: 	ds 4
-
-VLED_ADC: ds 2
-dtemp:  ds 2
-tempc: ds 1
-temp_mc:	ds 4
-OPAMP_temp: ds 4
-
-; /* FSM STATES */
-FSM1_state:  ds 1
-
-; /* TIME CHECK AND PWM */
-pwm_counter:	ds 1
-count10ms: 		ds 1
-seconds: 		ds 1
-pwm:			ds 1
-abort_time:		ds 1
-
-; /* Reflow profile parameters */
-ReflowTemp: 	ds 1
-ReflowTime:		ds 1
-SoakTime:		ds 1
-
-BSEG
-mf: dbit 1
-seconds_flag: dbit 1
-s_flag: dbit 1
-
-
-$NOLIST
+$include(adc_flash.inc)
 $include(math32.inc)
+$include(troubleshooter.inc) 
 $LIST
+
 
 InitAll:
 	; /*** SERIAL PORT INITIALIZATION ***/
-
 	mov	P3M1,#0x00  			; Configure all the pins for biderectional I/O
 	mov	P3M2,#0x00
 	mov	P1M1,#0x00
@@ -128,7 +135,6 @@ InitAll:
 	setb TR1
 
 	; /*** INITIALIZE THE REST ***/
-
 	orl	CKCON, #0x10 			; CLK is the input for timer 1
 	orl	PCON, #0x80 			; Bit SMOD=1, double baud rate
 	mov	SCON, #0x52
@@ -153,8 +159,10 @@ InitAll:
 	orl ADCCON0, #0x07 			; Select channel 7
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #0b10000000 	; P1.1 is analog input
+	orl AINDIDS, #0b1000000	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
+	mov temp_offset, #0x00
+
 
 ;----------------------------------------------------------------;
 ; 					TIMER 2 INITIALIZATION
@@ -263,7 +271,7 @@ SendStringDone:
 
 ; Sends binary data to Python via putchar
 SendBin:					
-	clr A					; Sends temp_out
+	clr A					; Sends temp_mc
 	mov a, temp_mc+0
 	lcall putchar
 	clr A
@@ -277,7 +285,16 @@ SendBin:
 	lcall putchar
 
 	clr A					; Sends data_out
-	mov a, data_out 
+	mov a, data_out+0
+	lcall putchar
+	clr A
+	mov a, data_out+1
+	lcall putchar
+	clr A					; Sends data_out
+	mov a, data_out+2
+	lcall putchar
+	clr A
+	mov a, data_out+3
 	lcall putchar
 	ret
 
@@ -323,8 +340,8 @@ Display_formated_BCD: ;4 dig
 	Display_char(#0xDF)
 	Set_Cursor(2, 16)
 	Display_char(#'C')
-
 	ret
+
 
 ; /* READ ADC */
 Read_ADC:
@@ -348,7 +365,7 @@ Read_ADC:
 	ret
 
 Main:
-    mov SP, #0x7F ; Set the stack pointer to the begining of idata
+    mov SP, #0x7F 	; Set the stack pointer to the begining of idata
     
     lcall InitAll
     lcall LCD_4BIT
@@ -367,7 +384,7 @@ Main:
 	Set_Cursor(2, 1)
     Send_Constant_String(#value_message)
 
-	mov data_out, #0b00000001
+	;mov data_out, #0b00000001
 
 ;Forever: ;avaliable: r2, r3
 FSM_sys:
@@ -381,9 +398,9 @@ FSM_sys:
 TEMP_READ:
 	ljmp read_led
 
-Avg_ADC:
+Avg_ADC:						; function for ADC noise reduction
     Load_X(0)
-    mov R5, #100
+    mov R5, #255
 sum_loop_avg:
     lcall Read_ADC
     mov y+3, #0
@@ -392,83 +409,114 @@ sum_loop_avg:
     mov y+0, R0
     lcall add32
     djnz R5, sum_loop_avg
-    Load_y(0)
+    Load_y(255)
     lcall div32
     ret
 
 read_led:
     anl ADCCON0, #0xf0          ; read led voltage
     orl ADCCON0, #LED_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov VLED_ADC+0, R0          ; save reading to VLED_ADC
 	mov VLED_ADC+1, R1
-
-read_opamp:
-    anl ADCCON0, #0xf0          ; *** OPAMP ***
-    orl ADCCON0, #OPAMP_PORT
-    lcall Read_ADC
-    mov x+0, R0 			    ; load opamp reading to x
-	mov x+1, R1
-	mov x+2, #0 			
-	mov x+3, #0
-    Load_y(207000)              ; load const vled ref into y      
-    lcall mul32
-    mov y+0, VLED_ADC+0 	    ; import vled reading into y
-	mov y+1, VLED_ADC+1         
-	mov y+2, #0 			
-	mov y+3, #0
-    lcall div32                 ; x value stores celcius 
-    Load_y(1000)                ; celcius -> milli celcius 
-    mov OPAMP_temp+0, x+0       ; save calculated opamp temp (mili C)
-    mov OPAMP_temp+1, x+1
-    mov OPAMP_temp+2, x+2
-    mov OPAMP_temp+3, x+3
 
 read_lm335:
     anl ADCCON0, #0xf0          ; *** LM335 ***
     orl ADCCON0, #LM335_PORT
-    lcall Read_ADC
+    lcall Avg_ADC
     mov x+0, R0 			    ; load lm335 reading to x
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(207000)               ; load const vled ref into y      
+    Load_y(260000)              ; load const vled ref into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import vled reading into y
 	mov y+1, VLED_ADC+1         
 	mov y+2, #0 			
 	mov y+3, #0
     lcall div32
-    Load_y(10)
-    lcall mul32
-    Load_y(273)			    ; adjust to 273.000 C offset
+    Load_y(273000)			    ; adjust to 273.000 C offset
 	lcall sub32	                ; result of lm335 temp remains in x
+	mov temp_lm+0, x+0          ; store 3 decimal lm335 value for later
+    mov temp_lm+1, x+1				
+    mov temp_lm+2, x+2
+    mov temp_lm+3, x+3
 
-add_lm335_to_opamp:
-    mov y+0, OPAMP_temp+0       ; load opamp temp to y
-    mov y+1, OPAMP_temp+1
-    mov y+2, OPAMP_temp+2
-    mov y+3, OPAMP_temp+3
-    ;lcall add32                 ; lm335 + opamp = real temp
-    mov temp_mc+0, x+0          ; store result in temp_mc (for python)
-    mov temp_mc+1, x+1
-    mov temp_mc+2, x+2
-    mov temp_mc+3, x+3
+read_opamp:
+	anl ADCCON0, #0xf0          ; *** OPAMP ***
+    orl ADCCON0, #OPAMP_PORT	; 
+	lcall Avg_ADC
+	mov x+0, R0 			    ; load opamp reading to x
+	mov x+1, R1
+	mov x+2, #0 			
+	mov x+3, #0
+	mov data_out+0, R0			
+	mov data_out+1, R1
+	mov data_out+2, #0
+	mov data_out+3, #0
+	
+    Load_y(2600)                ; load const vled ref (2070 mV) into y      
+    lcall mul32
+    mov y+0, VLED_ADC+0 	    ; import led adc reading into y
+	mov y+1, VLED_ADC+1      	   
+	mov y+2, #0 			
+	mov y+3, #0
+    lcall div32                 ; x value now stores OPAMP V in mV
 
+	; mov data_out+0, x+0			
+	; mov data_out+1, x+1
+	; mov data_out+2, x+2
+	; mov data_out+3, x+3
+
+
+
+	Load_y(1000)				
+	lcall mul32					; turn mV to uV
+	Load_y(V2C_DIVISOR)
+	
+	lcall div32					; deg C reading now in x
+
+	; mov data_out+0, x+0			
+	; mov data_out+1, x+1
+	; mov data_out+2, x+2
+	; mov data_out+3, x+3
+	; mov temp_offset+0, x+0		; use for reverse checking
+	; mov temp_offset+1, x+1	
+	
+	; Load_y(1000)
+	; lcall mul32					; conv to mV again to add to lm335 data
+
+; add_lm335_to_opamp:
+;     mov y+0, temp_lm+0       	; load lm335 temp to y
+;     mov y+1, temp_lm+1
+;     mov y+2, temp_lm+2
+;     mov y+3, temp_lm+3
+;     lcall add32                	; lm335 + opamp = real temp
+     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
+     mov temp_mc+1, x+1				
+     mov temp_mc+2, x+2
+     mov temp_mc+3, x+3
+
+export_to_bcd:
+	; lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
+	; lcall Display_formated_BCD
+	lcall Display_x	
+	
 export_to_main:
+	mov x+0, temp_mc+0          
+    mov x+1, temp_mc+1
+    mov x+2, temp_mc+2
+    mov x+3, temp_mc+3
     Load_y(1000)
     lcall div32
-    mov tempc, x+0              ; Both tempc and x now stores temp (C)
-
-	lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	lcall Display_formated_BCD
-    lcall bcd2hex 				; hex number now stored in x			
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)		
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
+
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */

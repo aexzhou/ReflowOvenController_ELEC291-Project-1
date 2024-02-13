@@ -10,8 +10,8 @@ import math
 import threading
 
 # Initialize serial connection
-ser = serial.Serial(
-    port='COM3',  # Adjust as needed
+ser = serial.Serial( 
+    port='COM4',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -57,22 +57,14 @@ def read_serial_data():
     t = 0
     while not shutdown_event.is_set():
         if ser.in_waiting > 0:
-            data = ser.read(5)
-            if len(data) == 5:
-                value, command = struct.unpack('<iB', data)
+            data = ser.read(8)
+            if len(data) == 8:
+                value, command = struct.unpack('<ii', data)
                 outval = format(value/1000, '.3f')
 
-                # if command != cm2:
-                #     cm2 = command 
-                #     title_change(cm2)
-            
-                if command & 0b00000001:
-                    unitchar = '°C'
-                elif command & 0b00000010:
-                    unitchar = '°F'
-                else:
-                    unitchar = '-'
-                print(f"Temp: {outval} {unitchar}")
+                #tempcom = hex(command)
+
+                print(f"Temp: {outval} | data_out[31:0]: {command}")
                 data_queue.put((t, float(outval)))
                 t += 1
 

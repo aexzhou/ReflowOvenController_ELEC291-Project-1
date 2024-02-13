@@ -21,35 +21,256 @@
 0000             23   TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 0000             24   TIMER2_RATE              EQU 100                                                         ; 1/100 = 10ms
 0000             25   TIMER2_RELOAD            EQU (65536-(CLK/(16*TIMER2_RATE)))
-0000             26   
-0000             27   org 0000H
-0000 0205E1      28      ljmp Main
-0003             29   
-0003             30   ; /* TIMER2 ENABLE */
-002B             31   org 0x002B
-002B 020438      32            ljmp Timer2_ISR
-002E             33   
-002E             34   
-002E             35   ;                     1234567890123456    <- This helps determine the location of the counter
-002E 2A2A2A2A    36   test_message:     db '****LOADING*****', 0
+0000             26   GAIN                             EQU 25
+0000             27   ;V2C_DIVISOR                     EQU (GAIN*41)
+0000             28   V2C_DIVISOR                      EQU 1051
+0000             29   
+0000             30   ; /*** PORT DEFINITIONS ***/
+0000             31   LCD_RS                   equ P1.3
+0000             32   LCD_E                    equ P1.4
+0000             33   LCD_D4                   equ P0.0
+0000             34   LCD_D5                   equ P0.1
+0000             35   LCD_D6                   equ P0.2
+0000             36   LCD_D7                   equ P0.3
+0000             37   PWM_OUT                  equ P1.0
+0000             38   START_BUTTON     equ P0.4
+0000             39   ; Analog Input Port Numbering
+0000             40   LED_PORT                 equ 0x00                        ; AIN port numbers
+0000             41   LM335_PORT               equ 0x05
+0000             42   OPAMP_PORT               equ 0x07
+0000             43   AINCONFIG                equ 0b10100001          ; bits 1 = toggled analog in
+0000             44   
+0000             45   ; /*** VECTORS ***/
+0000             46   org 0000H
+0000 0239D3      47            ljmp Main
+0003             48   
+002B             49   org 002BH                                        ; timer 2 enable
+002B 023818      50            ljmp Timer2_ISR
+002E             51   
+3000             52   org 3000H                                        ; lookup table stored at APROM address starting 0x4000
+3000             53   ;        $NOLIST
+                 -1    	$include(thermodata.inc)
+3000              1   ; Contains mV offset for Thermocouple
+3000              2   ; Stored in APROM location: 0x3000
+3000              3   thermodata:
+3000 00000027     4       DW  0, 39, 79, 119, 158, 198, 238, 277, 317, 357, 397, 437, 477, 517, 557, 597 
+     004F0077
+     009E00C6
+     00EE0115
+     013D0165
+     018D01B5
+     01DD0205
+     022D0255
+3020 027D02A5     5       DW  637, 677, 718, 758, 798, 838, 879, 919, 960, 1000, 1041, 1081, 1122, 1163, 1203, 1244
+     02CE02F6
+     031E0346
+     036F0397
+     03C003E8
+     04110439
+     0462048B
+     04B304DC
+3040 0505052E     6       DW  1285, 1326, 1366, 1407, 1448, 1489, 1530, 1571, 1612, 1653, 1694, 1735, 1776, 1817, 1858, 1899
+     0556057F
+     05A805D1
+     05FA0623
+     064C0675
+     069E06C7
+     06F00719
+     0742076B
+3060 079507BE     7       DW  1941, 1982, 2023, 2064, 2106, 2147, 2188, 2230, 2271, 2312, 2354, 2395, 2436, 2478, 2519, 2561 
+     07E70810
+     083A0863
+     088C08B6
+     08DF0908
+     0932095B
+     098409AE
+     09D70A01
+3080 0A2A0A54     8       DW  2602, 2644, 2685, 2727, 2768, 2810, 2851, 2893, 2934, 2976, 3017, 3059, 3100, 3142, 3184, 3225
+     0A7D0AA7
+     0AD00AFA
+     0B230B4D
+     0B760BA0
+     0BC90BF3
+     0C1C0C46
+     0C700C99
+30A0 0CC30CEC     9       DW  3267, 3308, 3350, 3391, 3433, 3474, 3516, 3557, 3599, 3640, 3682, 3723, 3765, 3806, 3848, 3889 
+     0D160D3F
+     0D690D92
+     0DBC0DE5
+     0E0F0E38
+     0E620E8B
+     0EB50EDE
+     0F080F31
+30C0 0F5B0F84    10       DW  3931, 3972, 4013, 4055, 4096, 4138, 4179, 4220, 4262, 4303, 4344, 4385, 4427, 4468, 4509, 4550 
+     0FAD0FD7
+     1000102A
+     1053107C
+     10A610CF
+     10F81121
+     114B1174
+     119D11C6
+30E0 11EF1219    11       DW  4591, 4633, 4674, 4715, 4756, 4797, 4838, 4879, 4920, 4961, 5002, 5043, 5084, 5124, 5165, 5206
+     1242126B
+     129412BD
+     12E6130F
+     13381361
+     138A13B3
+     13DC1404
+     142D1456
+3100 147F14A8    12       DW  5247, 5288, 5328, 5369, 5410, 5450, 5491, 5532, 5572, 5613, 5653, 5694, 5735, 5775, 5815, 5856
+     14D014F9
+     1522154A
+     1573159C
+     15C415ED
+     1615163E
+     1667168F
+     16B716E0
+3120 17081731    13       DW  5896, 5937, 5977, 6017, 6058, 6098, 6138, 6179, 6219, 6259, 6299, 6339, 6380, 6420, 6460, 6500
+     17591781
+     17AA17D2
+     17FA1823
+     184B1873
+     189B18C3
+     18EC1914
+     193C1964
+3140 198C19B4    14       DW  6540, 6580, 6620, 6660, 6701, 6741, 6781, 6821, 6861, 6901, 6941, 6981, 7021, 7060, 7100, 7140
+     19DC1A04
+     1A2D1A55
+     1A7D1AA5
+     1ACD1AF5
+     1B1D1B45
+     1B6D1B94
+     1BBC1BE4
+3160 1C0C1C34    15       DW  7180, 7220, 7260, 7300, 7340, 7380, 7420, 7460, 7500, 7540, 7579, 7619, 7659, 7699, 7739, 7779
+     1C5C1C84
+     1CAC1CD4
+     1CFC1D24
+     1D4C1D74
+     1D9B1DC3
+     1DEB1E13
+     1E3B1E63
+3180 1E8B1EB3    16       DW  7819, 7859, 7899, 7939, 7979, 8019, 8059, 8099, 8138, 8178, 8218, 8258, 8298, 8338, 8378, 8418
+     1EDB1F03
+     1F2B1F53
+     1F7B1FA3
+     1FCA1FF2
+     201A2042
+     206A2092
+     20BA20E2
+31A0 210A2133    17       DW  8458, 8499, 8539, 8579, 8619, 8659, 8699, 8739, 8779, 8819, 8860, 8900, 8940, 8980, 9020, 9061
+     215B2183
+     21AB21D3
+     21FB2223
+     224B2273
+     229C22C4
+     22EC2314
+     233C2365
+31C0 238D23B5    18       DW  9101, 9141, 9181, 9222, 9262, 9302, 9343, 9383, 9423, 9464, 9504, 9545, 9585, 9626, 9666, 9707
+     23DD2406
+     242E2456
+     247F24A7
+     24CF24F8
+     25202549
+     2571259A
+     25C225EB
+31E0 2613263C    19       DW  9747, 9788, 9828, 9869, 9909, 9950, 9991, 10031, 10072, 10113, 10153, 10194, 10235, 10276, 10316, 10357 
+     2664268D
+     26B526DE
+     2707272F
+     27582781
+     27A927D2
+     27FB2824
+     284C2875
+3200 289E28C7    20       DW  10398, 10439, 10480, 10520, 10561, 10602, 10643, 10684, 10725, 10766, 10807, 10848, 10889, 10930, 10971, 11012 
+     28F02918
+     2941296A
+     299329BC
+     29E52A0E
+     2A372A60
+     2A892AB2
+     2ADB2B04
+3220 2B2D2B56    21       DW  11053, 11094, 11135, 11176, 11217, 11259, 11300, 11341, 11382, 11423, 11465, 11506, 11547, 11588, 11630, 11671
+     2B7F2BA8
+     2BD12BFB
+     2C242C4D
+     2C762C9F
+     2CC92CF2
+     2D1B2D44
+     2D6E2D97
+3240 2DC02DE9    22       DW  11712, 11753, 11795, 11836, 11877, 11919, 11960, 12001, 12043, 12084, 12126, 12167, 12209, 12250, 12291, 12333
+     2E132E3C
+     2E652E8F
+     2EB82EE1
+     2F0B2F34
+     2F5E2F87
+     2FB12FDA
+     3003302D
+3260 30563080    23       DW  12374, 12416, 12457, 12499, 12540, 12582, 12624
+     30A930D3
+     30FC3126
+     3150
+326E             24   
+326E             55   ;        $List
+326E             56   
+326E             57   ; /*** DIRECT ACCESS VARIABLES @RAM 0x30 -> 0x7F ***/
+0030             58   DSEG at 30H
+0030             59   x:                       ds 4            ; for math
+0034             60   y:                       ds 4
+0038             61   data_out:        ds 4            ; for python
+003C             62   bcd:                     ds 5            ; for display
+0041             63   
+0041             64   VLED_ADC:                ds 2            ; for temperature 
+0043             65   dtemp:                   ds 2
+0045             66   tempc:                   ds 1
+0046             67   temp_mc:                 ds 4
+004A             68   OPAMP_temp:      ds 4
+004E             69   temp_lm:                 ds 4
+0052             70   temp_offset:     ds 2
+0054             71   mV_offset:       ds 2
+0056             72   
+0056             73   FSM1_state:      ds 1            ; fsm states
+0057             74   
+0057             75   pwm_counter:     ds 1            ; time check and pwm
+0058             76   count10ms:               ds 1
+0059             77   seconds:                 ds 1
+005A             78   pwm:                     ds 1
+005B             79   abort_time:              ds 1
+005C             80   
+005C             81   ReflowTemp:      ds 1            ; reflow profile parameters
+005D             82   ReflowTime:              ds 1
+005E             83   SoakTime:                ds 1
+005F             84   
+005F             85   Val_test:                ds 4
+0063             86   Val_temp:                ds 4
+0067             87   
+0067             88   ; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
+0000             89   BSEG 
+0000             90   mf:                      dbit 1
+0001             91   seconds_flag:    dbit 1
+0002             92   s_flag:                  dbit 1
+0003             93   
+0003             94   ; /*** CODE SEGMENT ***/
+326E             95   CSEG
+326E             96   ;                     1234567890123456    <- This helps determine the location of the counter
+326E 2A2A2A2A    97   test_message:     db '****LOADING*****', 0
      4C4F4144
      494E472A
      2A2A2A2A
      00
-003F 54454D50    37   value_message:    db 'TEMP:      ', 0
+327F 54454D50    98   value_message:    db 'TEMP:      ', 0
      3A202020
      20202000
-004B 43454C43    38   cel_message:       db 'CELCIUS  READING',0
+328B 43454C43    99   cel_message:       db 'CELCIUS  READING',0
      49555320
      20524541
      44494E47
      00
-005C 46415245    39   fah_message:      db 'FARENHET READING',0
+329C 46415245   100   fah_message:      db 'FARENHET READING',0
      4E484554
      20524541
      44494E47
      00
-006D 41424F52    40   abort_message:     db 'ABORTABORTABORT ', 0
+32AD 41424F52   101   abort_message:     db 'ABORTABORTABORT ', 0
      5441424F
      52544142
      4F525420
@@ -70,7 +291,7 @@
 007E             54   ; Analog Input Port Numbering
 007E             55   LED_PORT equ 0x00                        ; AIN port numbers
 007E             56   LM335_PORT equ 0x05
-007E             57   OPAMP_PORT equ 0x07
+007E             57   OPAMP_PORT equ 0x01
 007E             58   
                  60   	$LIST
 0146             62   
@@ -111,203 +332,214 @@
 0003             97   
 0003             98   
                 546   $LIST
-                100   $LIST
-03B6            102   
-03B6            103   InitAll:
-03B6            104            ; /*** SERIAL PORT INITIALIZATION ***/
-03B6            105   
-03B6 75AC00     106            mov     P3M1,#0x00                      ; Configure all the pins for biderectional I/O
-03B9 75AD00     107            mov     P3M2,#0x00
-03BC 75B300     108            mov     P1M1,#0x00
-03BF 75B400     109            mov     P1M2,#0x00
-03C2 75B100     110            mov     P0M1,#0x00
-03C5 75B200     111            mov     P0M2,#0x00
-03C8            112       ; Since the reset button bounces, we need to wait a bit before
-03C8            113       ; sending messages, otherwise we risk displaying gibberish!
-03C8            114       ;mov R1, #200
-03C8            115       ;mov R0, #104
-03C8            116       ;djnz R0, $                                  ; 4 cycles->4*60.285ns*104=25us
-03C8            117       ;djnz R1, $-4                                ; 25us*200=5.0ms
-03C8 7A05       118       mov R2, #5
-03CA 12050B     119       lcall waitms
-03CD            120       ; Now we can proceed with the configuration of the serial port
-03CD 438E10     121            orl     CKCON, #0x10                    ; CLK is the input for timer 1
-03D0 438780     122            orl     PCON, #0x80                     ; Bit SMOD=1, double baud rate
-03D3 759852     123            mov     SCON, #0x52
-03D6 53C4DF     124            anl     T3CON, #0b11011111
-03D9 53890F     125            anl     TMOD, #0x0F                             ; Clear the configuration bits for timer 1
-03DC 438920     126            orl     TMOD, #0x20                     ; Timer 1 Mode 2
-03DF 758DF7     127            mov     TH1, #TIMER1_RELOAD
-03E2 D28E       128            setb TR1
-03E4            129   
-03E4            130            ; /*** INITIALIZE THE REST ***/
-03E4            131   
-03E4 438E10     132            orl     CKCON, #0x10                    ; CLK is the input for timer 1
-03E7 438780     133            orl     PCON, #0x80                     ; Bit SMOD=1, double baud rate
-03EA 759852     134            mov     SCON, #0x52
-03ED 53C4DF     135            anl     T3CON, #0b11011111
-03F0 53890F     136            anl     TMOD, #0x0F                     ; Clear the configuration bits for timer 1
-03F3 438920     137            orl     TMOD, #0x20                     ; Timer 1 Mode 2
-03F6 758DF7     138            mov     TH1, #TIMER1_RELOAD     ; TH1=TIMER1_RELOAD;
-03F9 D28E       139            setb TR1
-03FB            140            
-03FB            141            ; Using timer 0 for delay functions.  Initialize here:
-03FB C28C       142            clr     TR0                                     ; Stop timer 0
-03FD 438E08     143            orl     CKCON,#0x08                     ; CLK is the input for timer 0
-0400 5389F0     144            anl     TMOD,#0xF0                              ; Clear the configuration bits for timer 0
-0403 438901     145            orl     TMOD,#0x01                              ; Timer 0 in Mode 1: 16-bit timer
-0406            146            
-0406            147            ; Initialize the pin used by the ADC (P1.1) as input.
-0406 43B302     148            orl     P1M1, #0b00000010
-0409 53B4FD     149            anl     P1M2, #0b11111101
-040C            150            
-040C            151            ; Initialize and start the ADC:
-040C 53E8F0     152            anl ADCCON0, #0xF0
-040F 43E807     153            orl ADCCON0, #0x07                      ; Select channel 7
-0412            154            ; AINDIDS select if some pins are analog inputs or digital I/O:
-0412 75F600     155            mov AINDIDS, #0x00                      ; Disable all analog inputs
-0415 43F680     156            orl AINDIDS, #0b10000000        ; P1.1 is analog input
-0418 43E101     157            orl ADCCON1, #0x01                      ; Enable ADC
-041B            158   
-041B            159   ;----------------------------------------------------------------;
-041B            160   ;                                        TIMER 2 INITIALIZATION
-041B            161   ;----------------------------------------------------------------;
-041B            162   
-041B 75C800     163            mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
-041E 75CDD7     164            mov TH2, #high(TIMER2_RELOAD)
-0421 75CC79     165            mov TL2, #low(TIMER2_RELOAD)
-0424            166            ; Set the reload value
-0424 75C9A0     167            mov T2MOD, #0b1010_0000 ; Enable timer 2 autoreload, and clock divider is 16
-0427 75CBD7     168            mov RCMP2H, #high(TIMER2_RELOAD)
-042A 75CA79     169            mov RCMP2L, #low(TIMER2_RELOAD)
-042D            170            ; Init the free running 10 ms counter to zero
-042D 755000     171            mov pwm_counter, #0
-0430            172            ; Enable the timer and interrupts
-0430 439B80     173            orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
-0433 D2CA       174       setb TR2  ; Enable timer 2
-0435            175   
-0435 D2AF       176            setb EA ; Enable global interrupts
-0437 22         177       ret
-0438            178   
-0438            179   
-0438            180   ;---------------------------------;
-0438            181   ; ISR for Timer 2                 ;
-0438            182   ;---------------------------------;
-0438            183   Timer2_ISR:
-0438 C2CF       184            clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
-043A C0D0       185            push psw
-043C C0E0       186            push acc
-043E            187            
-043E 0550       188            inc pwm_counter
-0440 C3         189            clr c
-0441 E553       190            mov a, pwm
-0443 9550       191            subb a, pwm_counter ; If pwm_counter <= pwm then c=1
-0445 B3         192            cpl c
-0446 9290       193            mov PWM_OUT, c
-0448            194            
-0448 E550       195            mov a, pwm_counter
-044A B46432     196            cjne a, #100, Timer2_ISR_done
-044D            197            ; executes every second
-044D 755000     198            mov pwm_counter, #0
-0450 0552       199            inc seconds ; It is super easy to keep a seconds count here
-0452 D202       200            setb s_flag
-0454 E54F       201            mov a, FSM1_state
-0456 B40003     202            cjne a, #0, Abort_Check0                        ; For abort check, the abort should not trigger if you are in state 0
-0459 02047F     203            ljmp Timer2_ISR_done
-045C            204   
-045C            205   Abort_Check0:
-045C            206   ; Check if temperature is above 240. If so, abort
-045C C3         207            clr c
-045D E546       208            mov a, tempc
-045F 94F0       209            subb a, #240                                            ; if a is greater than 240, there will be no carry bit so we need to abort
-0461 4006       210            jc Abort_Check1                                                 ; if temperature is below 240, continue to next check
-0463            211            ; abort routine
-0463 754F0A     212            mov FSM1_state, #10
-0466 02047F     213       ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
-0469            214   
-0469            215   Abort_Check1:
-0469            216   ; Check if temperature is below 50. If so, check for how long
-0469 E546       217            mov a, tempc
-046B C3         218            clr c
-046C 9432       219            subb a, #50                                                     ; if tempc (stored in a) is less than 50, there will be a carry bit
-046E 500C       220            jnc Timer2_ISR_abort_done                       ; skip the abort checks if temperature is above 50
-0470            221   
-0470            222   Abort_Check2:
-0470            223   ; Check if has been 60 seconds (at below 50 degrees)
-0470 0554       224            inc abort_time
-0472 E554       225            mov a, abort_time
-0474 C3         226            clr c
-0475 943C       227            subb a, #60                                                     ; if abort_time is less than 60, there will be a carry bit
-0477 5006       228            jnc Timer2_ISR_done                                     ; if there is a carry 
-0479 754F0A     229            mov FSM1_state, #10
-047C            230   
-047C            231   Timer2_ISR_abort_done:
-047C 755400     232            mov abort_time, #0
-047F            233   
-047F            234   Timer2_ISR_done:
-047F D0E0       235            pop acc
-0481 D0D0       236            pop psw
-0483 32         237            reti
-0484            238   
-0484            239   line1:
-0484 50574D20   240            DB 'PWM Example     '
+3793            141   $LIST
+                107   $LIST
+3793            109   
+3793            110   
+3793            111   InitAll:
+3793            112            ; /*** SERIAL PORT INITIALIZATION ***/
+3793 75AC00     113            mov     P3M1,#0x00                      ; Configure all the pins for biderectional I/O
+3796 75AD00     114            mov     P3M2,#0x00
+3799 75B300     115            mov     P1M1,#0x00
+379C 75B400     116            mov     P1M2,#0x00
+379F 75B100     117            mov     P0M1,#0x00
+37A2 75B200     118            mov     P0M2,#0x00
+37A5            119       ; Since the reset button bounces, we need to wait a bit before
+37A5            120       ; sending messages, otherwise we risk displaying gibberish!
+37A5            121       ;mov R1, #200
+37A5            122       ;mov R0, #104
+37A5            123       ;djnz R0, $                                  ; 4 cycles->4*60.285ns*104=25us
+37A5            124       ;djnz R1, $-4                                ; 25us*200=5.0ms
+37A5 7A05       125       mov R2, #5
+37A7 1238FD     126       lcall waitms
+37AA            127       ; Now we can proceed with the configuration of the serial port
+37AA 438E10     128            orl     CKCON, #0x10                    ; CLK is the input for timer 1
+37AD 438780     129            orl     PCON, #0x80                     ; Bit SMOD=1, double baud rate
+37B0 759852     130            mov     SCON, #0x52
+37B3 53C4DF     131            anl     T3CON, #0b11011111
+37B6 53890F     132            anl     TMOD, #0x0F                             ; Clear the configuration bits for timer 1
+37B9 438920     133            orl     TMOD, #0x20                     ; Timer 1 Mode 2
+37BC 758DF7     134            mov     TH1, #TIMER1_RELOAD
+37BF D28E       135            setb TR1
+37C1            136   
+37C1            137            ; /*** INITIALIZE THE REST ***/
+37C1 438E10     138            orl     CKCON, #0x10                    ; CLK is the input for timer 1
+37C4 438780     139            orl     PCON, #0x80                     ; Bit SMOD=1, double baud rate
+37C7 759852     140            mov     SCON, #0x52
+37CA 53C4DF     141            anl     T3CON, #0b11011111
+37CD 53890F     142            anl     TMOD, #0x0F                     ; Clear the configuration bits for timer 1
+37D0 438920     143            orl     TMOD, #0x20                     ; Timer 1 Mode 2
+37D3 758DF7     144            mov     TH1, #TIMER1_RELOAD     ; TH1=TIMER1_RELOAD;
+37D6 D28E       145            setb TR1
+37D8            146            
+37D8            147            ; Using timer 0 for delay functions.  Initialize here:
+37D8 C28C       148            clr     TR0                                     ; Stop timer 0
+37DA 438E08     149            orl     CKCON,#0x08                     ; CLK is the input for timer 0
+37DD 5389F0     150            anl     TMOD,#0xF0                              ; Clear the configuration bits for timer 0
+37E0 438901     151            orl     TMOD,#0x01                              ; Timer 0 in Mode 1: 16-bit timer
+37E3            152            
+37E3            153            ; Initialize the pin used by the ADC (P1.1) as input.
+37E3 43B302     154            orl     P1M1, #0b00000010
+37E6 53B4FD     155            anl     P1M2, #0b11111101
+37E9            156            
+37E9            157            ; Initialize and start the ADC:
+37E9 53E8F0     158            anl ADCCON0, #0xF0
+37EC 43E807     159            orl ADCCON0, #0x07                      ; Select channel 7
+37EF            160            ; AINDIDS select if some pins are analog inputs or digital I/O:
+37EF 75F600     161            mov AINDIDS, #0x00                      ; Disable all analog inputs
+37F2 43F640     162            orl AINDIDS, #0b1000000         ; P1.1 is analog input
+37F5 43E101     163            orl ADCCON1, #0x01                      ; Enable ADC
+37F8 755200     164            mov temp_offset, #0x00
+37FB            165   
+37FB            166   
+37FB            167   ;----------------------------------------------------------------;
+37FB            168   ;                                        TIMER 2 INITIALIZATION
+37FB            169   ;----------------------------------------------------------------;
+37FB            170   
+37FB 75C800     171            mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
+37FE 75CDD7     172            mov TH2, #high(TIMER2_RELOAD)
+3801 75CC79     173            mov TL2, #low(TIMER2_RELOAD)
+3804            174            ; Set the reload value
+3804 75C9A0     175            mov T2MOD, #0b1010_0000 ; Enable timer 2 autoreload, and clock divider is 16
+3807 75CBD7     176            mov RCMP2H, #high(TIMER2_RELOAD)
+380A 75CA79     177            mov RCMP2L, #low(TIMER2_RELOAD)
+380D            178            ; Init the free running 10 ms counter to zero
+380D 755700     179            mov pwm_counter, #0
+3810            180            ; Enable the timer and interrupts
+3810 439B80     181            orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
+3813 D2CA       182       setb TR2  ; Enable timer 2
+3815            183   
+3815 D2AF       184            setb EA ; Enable global interrupts
+3817 22         185       ret
+3818            186   
+3818            187   
+3818            188   ;---------------------------------;
+3818            189   ; ISR for Timer 2                 ;
+3818            190   ;---------------------------------;
+3818            191   Timer2_ISR:
+3818 C2CF       192            clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
+381A C0D0       193            push psw
+381C C0E0       194            push acc
+381E            195            
+381E 0557       196            inc pwm_counter
+3820 C3         197            clr c
+3821 E55A       198            mov a, pwm
+3823 9557       199            subb a, pwm_counter ; If pwm_counter <= pwm then c=1
+3825 B3         200            cpl c
+3826 9290       201            mov PWM_OUT, c
+3828            202            
+3828 E557       203            mov a, pwm_counter
+382A B46432     204            cjne a, #100, Timer2_ISR_done
+382D            205            ; executes every second
+382D 755700     206            mov pwm_counter, #0
+3830 0559       207            inc seconds ; It is super easy to keep a seconds count here
+3832 D202       208            setb s_flag
+3834 E556       209            mov a, FSM1_state
+3836 B40003     210            cjne a, #0, Abort_Check0                        ; For abort check, the abort should not trigger if you are in state 0
+3839 02385F     211            ljmp Timer2_ISR_done
+383C            212   
+383C            213   Abort_Check0:
+383C            214   ; Check if temperature is above 240. If so, abort
+383C C3         215            clr c
+383D E545       216            mov a, tempc
+383F 94F0       217            subb a, #240                                            ; if a is greater than 240, there will be no carry bit so we need to abort
+3841 4006       218            jc Abort_Check1                                                 ; if temperature is below 240, continue to next check
+3843            219            ; abort routine
+3843 75560A     220            mov FSM1_state, #10
+3846 02385F     221       ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
+3849            222   
+3849            223   Abort_Check1:
+3849            224   ; Check if temperature is below 50. If so, check for how long
+3849 E545       225            mov a, tempc
+384B C3         226            clr c
+384C 9432       227            subb a, #50                                                     ; if tempc (stored in a) is less than 50, there will be a carry bit
+384E 500C       228            jnc Timer2_ISR_abort_done                       ; skip the abort checks if temperature is above 50
+3850            229   
+3850            230   Abort_Check2:
+3850            231   ; Check if has been 60 seconds (at below 50 degrees)
+3850 055B       232            inc abort_time
+3852 E55B       233            mov a, abort_time
+3854 C3         234            clr c
+3855 943C       235            subb a, #60                                                     ; if abort_time is less than 60, there will be a carry bit
+3857 5006       236            jnc Timer2_ISR_done                                     ; if there is a carry 
+3859 75560A     237            mov FSM1_state, #10
+385C            238   
+385C            239   Timer2_ISR_abort_done:
+385C 755B00     240            mov abort_time, #0
+385F            241   
+385F            242   Timer2_ISR_done:
+385F D0E0       243            pop acc
+3861 D0D0       244            pop psw
+3863 32         245            reti
+3864            246   
+3864            247   line1:
+3864 50574D20   248            DB 'PWM Example     '
      4578616D
      706C6520
      20202020
-0494 00         241            DB 0
-0495            242   line2:
-0495 43686B20   243            DB 'Chk pin 15:P1.0 '
+3874 00         249            DB 0
+3875            250   line2:
+3875 43686B20   251            DB 'Chk pin 15:P1.0 '
      70696E20
      31353A50
      312E3020
-04A5 00         244            DB 0
-04A6            245   
-04A6            246   ; /* Send a character using the serial port */
-04A6            247   putchar:
-04A6 3099FD     248       jnb TI, putchar
-04A9 C299       249       clr TI
-04AB F599       250       mov SBUF, a
-04AD 22         251       ret
-04AE            252   
-04AE            253   ; Send a constant-zero-terminated string using the serial port
-04AE            254   SendString:
-04AE E4         255       clr A
-04AF 93         256       movc A, @A+DPTR
-04B0 6006       257       jz SendStringDone
-04B2 1204A6     258       lcall putchar
-04B5 A3         259       inc DPTR
-04B6 80F6       260       sjmp SendString
-04B8            261   SendStringDone:
-04B8 22         262       ret
-04B9            263   
-04B9            264   ; Sends binary data to Python via putchar
-04B9            265   SendBin:                                         
-04B9 E4         266            clr A                                   ; Sends temp_out
-04BA E547       267            mov a, temp_mc+0
-04BC 1204A6     268            lcall putchar
-04BF E4         269            clr A
-04C0 E548       270            mov a, temp_mc+1
-04C2 1204A6     271            lcall putchar
-04C5 E4         272            clr A
-04C6 E549       273            mov a, temp_mc+2
-04C8 1204A6     274            lcall putchar
-04CB E4         275            clr A
-04CC E54A       276            mov a, temp_mc+3
-04CE 1204A6     277            lcall putchar
-04D1            278   
-04D1 E4         279            clr A                                   ; Sends data_out
-04D2 E538       280            mov a, data_out 
-04D4 1204A6     281            lcall putchar
-04D7 22         282            ret
-04D8            283   
-04D8            284   ASCII_CHAR: 
-04D8 30313233   285            db '0123456789ABCDEF'
+3885 00         252            DB 0
+3886            253   
+3886            254   ; /* Send a character using the serial port */
+3886            255   putchar:
+3886 3099FD     256       jnb TI, putchar
+3889 C299       257       clr TI
+388B F599       258       mov SBUF, a
+388D 22         259       ret
+388E            260   
+388E            261   ; Send a constant-zero-terminated string using the serial port
+388E            262   SendString:
+388E E4         263       clr A
+388F 93         264       movc A, @A+DPTR
+3890 6006       265       jz SendStringDone
+3892 123886     266       lcall putchar
+3895 A3         267       inc DPTR
+3896 80F6       268       sjmp SendString
+3898            269   SendStringDone:
+3898 22         270       ret
+3899            271   
+3899            272   ; Sends binary data to Python via putchar
+3899            273   SendBin:                                         
+3899 E4         274            clr A                                   ; Sends temp_mc
+389A E546       275            mov a, temp_mc+0
+389C 123886     276            lcall putchar
+389F E4         277            clr A
+38A0 E547       278            mov a, temp_mc+1
+38A2 123886     279            lcall putchar
+38A5 E4         280            clr A
+38A6 E548       281            mov a, temp_mc+2
+38A8 123886     282            lcall putchar
+38AB E4         283            clr A
+38AC E549       284            mov a, temp_mc+3
+38AE 123886     285            lcall putchar
+38B1            286   
+38B1 E4         287            clr A                                   ; Sends data_out
+38B2 E538       288            mov a, data_out+0
+38B4 123886     289            lcall putchar
+38B7 E4         290            clr A
+38B8 E539       291            mov a, data_out+1
+38BA 123886     292            lcall putchar
+38BD E4         293            clr A                                   ; Sends data_out
+38BE E53A       294            mov a, data_out+2
+38C0 123886     295            lcall putchar
+38C3 E4         296            clr A
+38C4 E53B       297            mov a, data_out+3
+38C6 123886     298            lcall putchar
+38C9 22         299            ret
+38CA            300   
+38CA            301   ASCII_CHAR: 
+38CA 30313233   302            db '0123456789ABCDEF'
      34353637
      38394142
      43444546
-04E8            286   
-04E8            287   Hello_World:
-04E8 48656C6C   288       DB  'Hello, World!', '\r', '\n', 0
+38DA            303   
+38DA            304   Hello_World:
+38DA 48656C6C   305       DB  'Hello, World!', '\r', '\n', 0
      6F2C2057
      6F726C64
      210D0A00
@@ -526,7 +758,7 @@
 0676            405   
 0676            406   read_opamp:
 0676 53E8F0     407       anl ADCCON0, #0xf0          ; *** OPAMP ***
-0679 43E807     408       orl ADCCON0, #OPAMP_PORT
+0679 43E801     408       orl ADCCON0, #OPAMP_PORT
 067C 1205C6     409       lcall Read_ADC
 067F 8830       410       mov x+0, R0                              ; load opamp reading to x
 0681 8931       411            mov x+1, R1
@@ -574,10 +806,10 @@
 06F6 753600     442            mov y+2, #low (10 / 0x10000) 
 06F9 753700     442            mov y+3, #high(10 / 0x10000) 
 06FC 1202C0     443       lcall mul32
-06FF 753411     444            mov y+0, #low (273 % 0x10000) 
-0702 753501     444            mov y+1, #high(273 % 0x10000) 
-0705 753600     444            mov y+2, #low (273 / 0x10000) 
-0708 753700     444            mov y+3, #high(273 / 0x10000)                       ; adjust to 273.000 C offset
+06FF 753468     444            mov y+0, #low (273000 % 0x10000) 
+0702 75352A     444            mov y+1, #high(273000 % 0x10000) 
+0705 753604     444            mov y+2, #low (273000 / 0x10000) 
+0708 753700     444            mov y+3, #high(273000 / 0x10000)                            ; adjust to 273.000 C offset
 070B 12022C     445            lcall sub32                     ; result of lm335 temp remains in x
 070E            446   
 070E            447   add_lm335_to_opamp:
