@@ -39,6 +39,7 @@ START_BUTTON 	equ P0.4
 LED_PORT 		equ 0x00			; AIN port numbers
 LM335_PORT 		equ 0x05
 OPAMP_PORT 		equ 0x07
+AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
 
 ; /*** VECTORS ***/
 org 0000H
@@ -157,7 +158,7 @@ InitAll:
 	orl ADCCON0, #0x07 			; Select channel 7
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #0b10000000 	; P1.1 is analog input
+	orl AINDIDS, #AINCONFIG 	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
 
