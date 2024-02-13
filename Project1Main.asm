@@ -106,6 +106,7 @@ $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $include(adc_flash.inc)
 $include(math32.inc)
 $include(troubleshooter.inc) 
+$include(temp_read.inc)
 $LIST
 
 
@@ -234,8 +235,9 @@ Abort_Check2:
 	mov a, abort_time
 	clr c
 	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jnc Timer2_ISR_done					; if there is a carry 
+	jc Timer2_ISR_done					; if there is a carry 
 	mov FSM1_state, #10
+	ljmp Timer2_ISR_done
 
 Timer2_ISR_abort_done:
 	mov abort_time, #0
@@ -509,6 +511,7 @@ export_to_main:					; exports temp reading to rest of code
     Load_y(1000)
     lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)		
+;lcall TEMP_READ
 
 export_to_bcd:					; sends temp reading in C to bcd
 	lcall hex2bcd
