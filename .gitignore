@@ -1,4 +1,5 @@
-
+git rm -rf --cached .
+git add .
 *.hex
 *.bat
 *.lst
