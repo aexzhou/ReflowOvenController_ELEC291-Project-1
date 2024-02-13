@@ -11,7 +11,7 @@ import threading
 
 # Initialize serial connection
 ser = serial.Serial( 
-    port='COM4',  # Adjust as needed
+    port='COM7',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -79,7 +79,7 @@ fig = plt.figure()
 fig.canvas.mpl_connect('close_event', on_close_figure)
 ax = fig.add_subplot(111)
 line, = ax.plot([], [], lw=2, color='red')
-ax.set_ylim(0, 50)
+ax.set_ylim(0, 250)
 ax.set_xlim(0, xsize)
 ax.grid()
 xdata, ydata = [], []
