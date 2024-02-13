@@ -95,9 +95,9 @@ s_flag: 		dbit 1
 CSEG
 ;                     1234567890123456    <- This helps determine the location of the counter
 test_message:     db '****LOADING*****', 0
-value_message:    db 'TEMP:      ', 0
-cel_message:	  db 'CELCIUS  READING',0
-fah_message:      db 'FARENHET READING',0
+value_message:    db 'TEMP:           ', 0
+temp_message:	  db 'OVEN TEMP:      ', 0
+fah_message:      db 'FARENHET READING', 0
 abort_message: 	  db 'ABORTABORTABORT ', 0
 state_message:	  db 'Current State:  ', 0
 
@@ -323,7 +323,29 @@ waitms:
 
 Display_formated_BCD: ;4 dig 
 	Set_Cursor(1, 1)
-    Send_Constant_String(#cel_message)
+    Send_Constant_String(#temp_message)
+	Set_Cursor(2, 7)
+	Display_BCD(bcd+2)
+	Set_Cursor(2, 9)
+	Display_BCD(bcd+1)
+	Set_Cursor(2, 10)
+	Display_BCD(bcd+1)
+	
+	Set_Cursor(2, 12)
+	Display_BCD(bcd+0)
+	Set_Cursor(2, 10)
+	Display_char(#'.')
+	Set_Cursor(2, 7)
+	Display_char(#0x20)
+	Set_Cursor(2, 15)
+	Display_char(#0xDF)
+	Set_Cursor(2, 16)
+	Display_char(#'C')
+	ret
+
+Display_temp_BCD: ;4 dig 
+	Set_Cursor(2, 1)
+    Send_Constant_String(#temp_message)
 	Set_Cursor(2, 7)
 	Display_BCD(bcd+2)
 	Set_Cursor(2, 9)
@@ -451,11 +473,6 @@ read_opamp:
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-	mov data_out+0, R0			
-	mov data_out+1, R1
-	mov data_out+2, #0
-	mov data_out+3, #0
-	
     Load_y(2600)                ; load const vled ref (2070 mV) into y      
     lcall mul32
     mov y+0, VLED_ADC+0 	    ; import led adc reading into y
@@ -463,44 +480,27 @@ read_opamp:
 	mov y+2, #0 			
 	mov y+3, #0
     lcall div32                 ; x value now stores OPAMP V in mV
-
-	; mov data_out+0, x+0			
-	; mov data_out+1, x+1
-	; mov data_out+2, x+2
-	; mov data_out+3, x+3
-
-
-
 	Load_y(1000)				
 	lcall mul32					; turn mV to uV
 	Load_y(V2C_DIVISOR)
-	
-	lcall div32					; deg C reading now in x
+	lcall div32					; deg C reading now in x	
+	Load_y(1000)
+	lcall mul32					; conv to mV again to add to lm335 data
 
-	; mov data_out+0, x+0			
-	; mov data_out+1, x+1
-	; mov data_out+2, x+2
-	; mov data_out+3, x+3
-	; mov temp_offset+0, x+0		; use for reverse checking
-	; mov temp_offset+1, x+1	
-	
-	; Load_y(1000)
-	; lcall mul32					; conv to mV again to add to lm335 data
-
-; add_lm335_to_opamp:
-;     mov y+0, temp_lm+0       	; load lm335 temp to y
-;     mov y+1, temp_lm+1
-;     mov y+2, temp_lm+2
-;     mov y+3, temp_lm+3
-;     lcall add32                	; lm335 + opamp = real temp
-     mov temp_mc+0, x+0          ; store result in temp_mc (for python)
-     mov temp_mc+1, x+1				
-     mov temp_mc+2, x+2
-     mov temp_mc+3, x+3
+add_lm335_to_opamp:
+    mov y+0, temp_lm+0       	; load lm335 temp to y
+    mov y+1, temp_lm+1
+    mov y+2, temp_lm+2
+    mov y+3, temp_lm+3
+    lcall add32                	; lm335 + opamp = real temp
+    mov temp_mc+0, x+0          ; store result in temp_mc (for python)
+    mov temp_mc+1, x+1				
+    mov temp_mc+2, x+2
+    mov temp_mc+3, x+3
 
 export_to_bcd:
 	; lcall hex2bcd 				; Convert val stored in x to BCD in "bcd"
-	; lcall Display_formated_BCD
+	; lcall Display_temp_BCD
 	lcall Display_x	
 	
 export_to_main:
