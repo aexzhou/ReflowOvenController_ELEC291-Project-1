@@ -91,6 +91,11 @@ BSEG
 mf: 			dbit 1
 seconds_flag: 	dbit 1
 s_flag: 		dbit 1
+PB0: 			dbit 1
+PB1: 			dbit 1
+PB2: 			dbit 1
+PB3: 			dbit 1
+PB4: 			dbit 1
 
 ; /*** CODE SEGMENT ***/
 CSEG
@@ -102,6 +107,9 @@ fah_message:      db 'FARENHET READING', 0
 abort_message: 	  db 'ABORTABORTABORT ', 0
 state_message:	  db 'Current State:  ', 0
 error_message:	  db 'State Error     ', 0
+soak_text:     db 'Soak:    s    C ', 0
+reflow_text:   db 'Refl:    s    C ', 0
+blank_text:    db '                ', 0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -290,10 +298,6 @@ SendBin:
 	mov a, temp_mc+3
 	lcall putchar
 
-	clr A					; sends current fsm state to python
-	mov a, FSM1_state 
-	lcall putchar
-
 	clr A					; Sends data_out
 	mov a, data_out+0
 	lcall putchar
@@ -416,10 +420,10 @@ Main:
 	mov SoakTemp, #150
 
     ; initial messages in LCD
-	Set_Cursor(1, 1)
-    Send_Constant_String(#test_message)
-	Set_Cursor(2, 1)
-    Send_Constant_String(#value_message)
+	; Set_Cursor(1, 1)
+    ; Send_Constant_String(#test_message)
+	; Set_Cursor(2, 1)
+    ; Send_Constant_String(#value_message)
 
 	;mov data_out, #0b00000001
 
@@ -522,9 +526,9 @@ export_to_main:					; exports temp reading to rest of code
     mov tempc, x+0              ; Both tempc and x now stores temp (C)		
 ;lcall TEMP_READ
 
-export_to_bcd:					; sends temp reading in C to bcd
-	lcall hex2bcd
-	lcall Display_temp_BCD
+; export_to_bcd:					; sends temp reading in C to bcd;
+; 	lcall hex2bcd
+; 	lcall Display_temp_BCD
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
@@ -545,124 +549,25 @@ Export:							; Data export to python
 
 FSM1:
 	mov a, FSM1_state
-	Set_Cursor(1,1)
-	Send_Constant_String(#state_message)
-	Set_Cursor(2,12)
-	mov Val_test+0, tempc          ; store result in temp_mc (for python)
-    mov Val_test+1, #0	
-    mov Val_test+2, #0
-    mov Val_test+3, #0
-	lcall Display_Val
+	;Set_Cursor(1,1)
+	;Send_Constant_String(#state_message)
+	;Set_Cursor(2,12)
+	; mov Val_test+0, tempc          ; store result in temp_mc (for python)
+    ; mov Val_test+1, #0	
+    ; mov Val_test+2, #0
+    ; mov Val_test+3, #0
+	;lcall Display_Val
 
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
-	mov FSM1_state, #1
-	ljmp FSM1_state0_done
 	mov pwm, #0
 	;Set_Cursor(1,15)
 	;Display_BCD(#0x00)
 
-wait_50ms:
 	; Wait 50 ms between readings
 	mov R2, #50
 	lcall waitms
-
-;--------------------------------------------;
-;			OVEN PARAMETER INPUTS			 ;
-;--------------------------------------------;
-	; initial messages in LCD
-	Set_Cursor(1, 1)
-    Send_Constant_String(#soak_text)
-	Set_Cursor(2, 1)
-    Send_Constant_String(#reflow_text)
-
-	Set_Cursor(1,8)
-    mov x, SoakTemp
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    Set_Cursor(1,13)
-	mov x, SoakTime
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    Set_Cursor(2,8)
-	mov x, ReflowTime
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    mov x, ReflowTemp
-    Set_Cursor(2,13)
-    lcall hex2bcd
-	Display_BCD(bcd)
-	clr seconds_flag
-
-Soak_Temp:
-	; If PB1 is pressed, increase soak temp
-	jb PB1, Soak_Time
-	mov a, SoakTemp
-	add a, #0x01
-	mov SoakTemp, a
-	mov x+0, SoakTemp+0
-    lcall hex2bcd
-    mov a, bcd+1
-    Set_Cursor(1,6)
-    Display_BCD(bcd+1)
-    Set_Cursor(1,6)
-    Display_char(#0x20)
-    Set_Cursor(1,8)
-	Display_BCD(bcd+0)
-
-
-Soak_Time:
-	; If PB2 is pressed, increase soak time
-	jb PB2, Reflow_Time	
-	mov a, SoakTime
-	add a, #0x01
-	mov SoakTime, a
-	mov x+0, SoakTime+0
-    lcall hex2bcd
-    mov a, bcd+1
-	Set_Cursor(1,11)
-    Display_BCD(bcd+1)
-    Set_Cursor(1,11)
-    Display_char(#0x20)
-    Set_Cursor(1,13)
-	Display_BCD(bcd+0)
-
-Reflow_Time:
-	; If PB3 is pressed, increase reflow time
-	jb PB3, Reflow_Temp
-	mov a, ReflowTime
-	add a, #0x01
-	mov ReflowTime, a
-	mov x+0, ReflowTime+0
-    lcall hex2bcd
-    mov a, bcd+1
-	Set_Cursor(2,6)
-    Display_BCD(bcd+1)
-    Set_Cursor(2,6)
-    Display_char(#0x20)
-    Set_Cursor(2,8)
-	Display_BCD(bcd+0)
-
-Reflow_Temp:
-	; If PB4 is pressed, increase reflow temp
-	jb PB4, Start_Stop
-	mov a, ReflowTemp
-	add a, #0x01
-	mov ReflowTemp, a
-	mov x+0, ReflowTemp+0
-    lcall hex2bcd
-    mov a, bcd+1
-	Set_Cursor(2,11)
-    Display_BCD(bcd+1)
-    Set_Cursor(2,11)
-    Display_char(#0x20)
-    Set_Cursor(2,13)
-	Display_BCD(bcd+0)
-
-	ljmp save_parameters
+	ljmp paraminput
 
 	; check for push button input
 	jb START_BUTTON, FSM1_state0_done
@@ -772,6 +677,107 @@ FSM1_error:
 	Set_Cursor(1,1)
 	Send_Constant_String(#error_message)
 	ljmp FSM1_error
+	
+
+paraminput:
+;--------------------------------------------;
+;			OVEN PARAMETER INPUTS			 ;
+;--------------------------------------------;
+	; initial messages in LCD
+	Set_Cursor(1, 1)
+    Send_Constant_String(#soak_text)
+	Set_Cursor(2, 1)
+    Send_Constant_String(#reflow_text)
+
+	Set_Cursor(1,8)
+    mov x, SoakTemp
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(1,13)
+	mov x, SoakTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(2,8)
+	mov x, ReflowTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    mov x, ReflowTemp
+    Set_Cursor(2,13)
+    lcall hex2bcd
+	Display_BCD(bcd)
+	clr seconds_flag
+
+Soak_Temp:
+	; If PB1 is pressed, increase soak temp
+	jb PB1, Soak_Time
+	mov a, SoakTemp
+	add a, #0x01
+	mov SoakTemp, a
+	mov x+0, SoakTemp+0
+    lcall hex2bcd
+    mov a, bcd+1
+    Set_Cursor(1,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,6)
+    Display_char(#0x20)
+    Set_Cursor(1,8)
+	Display_BCD(bcd+0)
+
+
+Soak_Time:
+	; If PB2 is pressed, increase soak time
+	jb PB2, Reflow_Time	
+	mov a, SoakTime
+	add a, #0x01
+	mov SoakTime, a
+	mov x+0, SoakTime+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(1,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,11)
+    Display_char(#0x20)
+    Set_Cursor(1,13)
+	Display_BCD(bcd+0)
+
+Reflow_Time:
+	; If PB3 is pressed, increase reflow time
+	jb PB3, Reflow_Temp
+	mov a, ReflowTime
+	add a, #0x01
+	mov ReflowTime, a
+	mov x+0, ReflowTime+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(2,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,6)
+    Display_char(#0x20)
+    Set_Cursor(2,8)
+	Display_BCD(bcd+0)
+
+Reflow_Temp:
+	; If PB4 is pressed, increase reflow temp
+	jb PB4, paramdone
+	mov a, ReflowTemp
+	add a, #0x01
+	mov ReflowTemp, a
+	mov x+0, ReflowTemp+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(2,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,11)
+    Display_char(#0x20)
+    Set_Cursor(2,13)
+	Display_BCD(bcd+0)
+
+paramdone:
+	ljmp save_parameters
+	ret
 
 LCD_PB:
 ; Set variables to 1: 'no push button pressed'
@@ -803,6 +809,12 @@ LCD_PB:
     setb P0.2
     setb P0.3
     setb P1.3
+
+;               TXD/AIN3/P0.6 -|2    19|- P0.3/PWM5/IC5/AIN6
+;               RXD/AIN2/P0.7 -|3    18|- P0.2/ICPCK/OCDCK/RXD_1/[SCL]
+;                    RST/P2.0 -|4    17|- P0.1/PWM4/IC4/MISO
+;        INT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
+;                         VDD -|9    12|- P1.3/SCL/[STADC]
 
     ; Check the push buttons one by one
     clr P1.3
