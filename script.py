@@ -57,14 +57,14 @@ def read_serial_data():
     t = 0
     while not shutdown_event.is_set():
         if ser.in_waiting > 0:
-            data = ser.read(8)
-            if len(data) == 8:
-                value, command = struct.unpack('<ii', data)
+            data = ser.read(9)
+            if len(data) == 9:
+                value, fsm_state, command = struct.unpack('<iBi', data)
                 outval = format(value/1000, '.3f')
 
                 #tempcom = hex(command)
 
-                print(f"Temp: {outval} | data_out[31:0]: {command}")
+                print(f"Temp: {outval} | Curr FSM State: {fsm_state} | data_out[31:0]: {command}")
                 data_queue.put((t, float(outval)))
                 t += 1
 
