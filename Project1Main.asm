@@ -253,9 +253,9 @@ Timer2_ISR:
 	cpl c
 	mov PWM_OUT, c
 	
-    ;cjne a, #50, inc_seconds
+    cjne a, #50, inc_seconds
 	;executes every half-second
-    ;setb half_s_flag 
+    setb half_s_flag 
     
 inc_seconds:
 	mov a, pwm_counter
@@ -290,7 +290,7 @@ Abort_Check2:
 	inc abort_time
 	mov a, abort_time
 	clr c
-	subb a, #15							; if abort_time is less than 60, there will be a carry bit
+	subb a, #5							; if abort_time is less than 60, there will be a carry bit
 	jc Timer2_ISR_done					; if there is a carry 
 	mov FSM1_state, #10
 	ljmp Timer2_ISR_done
@@ -734,8 +734,8 @@ FSM1_state6:
 	Set_Cursor(1,15)
 	Display_BCD(#0x06)
 
-    ;alarm sound 
-    ;first dadada
+;alarm sound 
+;first dadada
     clr TR0
     mov frequency+0,#low(FREQ_D7) 
     mov frequency+1,#high(FREQ_D7)
