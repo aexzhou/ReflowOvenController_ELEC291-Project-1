@@ -81,6 +81,7 @@ abort_time:		ds 1
 ReflowTemp: 	ds 1		; reflow profile parameters
 ReflowTime:		ds 1
 SoakTime:		ds 1
+SoakTemp:		ds 1
 
 Val_test:		ds 4
 Val_temp:		ds 4
@@ -408,6 +409,7 @@ Main:
 	mov ReflowTime, #30
 	mov SoakTime, #60
 	mov abort_time, #0
+	mov SoakTemp, #150
 
     ; initial messages in LCD
 	Set_Cursor(1, 1)
@@ -553,9 +555,111 @@ FSM1_state0:
 	mov FSM1_state, #1
 	ljmp FSM1_state0_done
 	mov pwm, #0
-	Set_Cursor(1,15)
-	Display_BCD(#0x00)
+	;Set_Cursor(1,15)
+	;Display_BCD(#0x00)
+
+wait_50ms:
+	; Wait 50 ms between readings
+	mov R2, #50
+	lcall waitms
+
+;--------------------------------------------;
+;			OVEN PARAMETER INPUTS			 ;
+;--------------------------------------------;
+	; initial messages in LCD
+	Set_Cursor(1, 1)
+    Send_Constant_String(#soak_text)
+	Set_Cursor(2, 1)
+    Send_Constant_String(#reflow_text)
+
+	Set_Cursor(1,8)
+    mov x, SoakTemp
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(1,13)
+	mov x, SoakTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(2,8)
+	mov x, ReflowTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    mov x, ReflowTemp
+    Set_Cursor(2,13)
+    lcall hex2bcd
+	Display_BCD(bcd)
 	clr seconds_flag
+
+Soak_Temp:
+	; If PB1 is pressed, increase soak temp
+	jb PB1, Soak_Time
+	mov a, SoakTemp
+	add a, #0x01
+	mov SoakTemp, a
+	mov x+0, SoakTemp+0
+    lcall hex2bcd
+    mov a, bcd+1
+    Set_Cursor(1,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,6)
+    Display_char(#0x20)
+    Set_Cursor(1,8)
+	Display_BCD(bcd+0)
+
+
+Soak_Time:
+	; If PB2 is pressed, increase soak time
+	jb PB2, Reflow_Time	
+	mov a, SoakTime
+	add a, #0x01
+	mov SoakTime, a
+	mov x+0, SoakTime+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(1,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,11)
+    Display_char(#0x20)
+    Set_Cursor(1,13)
+	Display_BCD(bcd+0)
+
+Reflow_Time:
+	; If PB3 is pressed, increase reflow time
+	jb PB3, Reflow_Temp
+	mov a, ReflowTime
+	add a, #0x01
+	mov ReflowTime, a
+	mov x+0, ReflowTime+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(2,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,6)
+    Display_char(#0x20)
+    Set_Cursor(2,8)
+	Display_BCD(bcd+0)
+
+Reflow_Temp:
+	; If PB4 is pressed, increase reflow temp
+	jb PB4, Start_Stop
+	mov a, ReflowTemp
+	add a, #0x01
+	mov ReflowTemp, a
+	mov x+0, ReflowTemp+0
+    lcall hex2bcd
+    mov a, bcd+1
+	Set_Cursor(2,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,11)
+    Display_char(#0x20)
+    Set_Cursor(2,13)
+	Display_BCD(bcd+0)
+
+	ljmp save_parameters
+
 	; check for push button input
 	jb START_BUTTON, FSM1_state0_done
 	jnb START_BUTTON, $ ; Wait for key release
@@ -664,6 +768,118 @@ FSM1_error:
 	Set_Cursor(1,1)
 	Send_Constant_String(#error_message)
 	ljmp FSM1_error
+
+LCD_PB:
+; Set variables to 1: 'no push button pressed'
+    setb PB0
+    setb PB1
+    setb PB2
+    setb PB3
+    setb PB4
+    ; The input pin used to check set to '1'
+    setb P1.5
+
+    ; Check if any push button is pressed
+    clr P0.0
+    clr P0.1
+    clr P0.2
+    clr P0.3
+    clr P1.3
+
+    jb P1.5, LCD_PB_Done
+
+    ; Debounce
+    mov R2, #50
+    lcall waitms
+
+    jb P1.5, LCD_PB_Done
+    ; Set the LCD data pins to logic 1
+    setb P0.0
+    setb P0.1
+    setb P0.2
+    setb P0.3
+    setb P1.3
+
+    ; Check the push buttons one by one
+    clr P1.3
+    mov c, P1.5
+    mov PB4, c
+    setb P1.3
+   
+    clr P0.0
+    mov c, P1.5
+    mov PB3, c
+    setb P0.0
+   
+    clr P0.1
+    mov c, P1.5
+    mov PB2, c
+    setb P0.1
+   
+    clr P0.2
+    mov c, P1.5
+    mov PB1, c
+    setb P0.2
+   
+    clr P0.3
+    mov c, P1.5
+    mov PB0, c
+    setb P0.3
+   
+LCD_PB_Done:
+    ret
+
+save_parameters:
+	CLR EA  ; MUST disable interrupts for this to work!
+
+	MOV TA, #0aah ; CHPCON is TA protected
+	MOV TA, #55h
+	ORL CHPCON, #00000001b ; IAPEN = 1, enable IAP mode
+
+	MOV TA, #0aah ; IAPUEN is TA protected
+	MOV TA, #55h
+	ORL IAPUEN, #00000001b ; APUEN = 1, enable APROM update
+
+	MOV IAPCN, #PAGE_ERASE_AP ; Erase page 3f80h~3f7Fh
+	MOV IAPAH, #3fh
+	MOV IAPAL, #80h
+	MOV IAPFD, #0FFh
+	MOV TA, #0aah ; IAPTRG is TA protected
+	MOV TA, #55h
+	ORL IAPTRG, #00000001b ; write ?1? to IAPGO to trigger IAP process
+
+	MOV IAPCN, #BYTE_PROGRAM_AP
+	MOV IAPAH, #0x28h
+
+	;Load 3f80h with SoakTime
+	MOV IAPAL, #00h
+	MOV IAPFD, SoakTime
+	MOV TA, #0aah
+	MOV TA, #55h
+	ORL IAPTRG,#00000001b
+
+	;Load 3f81h with SoakTemp
+	MOV IAPAL, #01h
+	MOV IAPFD, SoakTemp
+	MOV TA, #0aah
+	MOV TA, #55h
+	ORL IAPTRG,#00000001b
+
+	;Load 3f82h with ReflowTime
+	MOV IAPAL, #02h
+	MOV IAPFD, ReflowTime
+	MOV TA, #0aah
+	MOV TA, #55h
+	ORL IAPTRG,#00000001b
+
+	;Load 3f83h with ReflowTemp
+	MOV IAPAL, #03h
+	MOV IAPFD, ReflowTemp
+	MOV TA, #0aah
+	MOV TA, #55h
+	ORL IAPTRG,#00000001b
+
+	ret
 
 END
 
