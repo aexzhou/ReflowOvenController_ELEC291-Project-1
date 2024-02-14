@@ -1,4 +1,3 @@
-
 $NOLIST
 $MODN76E003
 $LIST
@@ -30,16 +29,16 @@ ORG 0x0000
         ljmp main
 
 ;                 1234567890123456    <-This helps determine the location of the counter
-soak_text:     db 'Soak: xxxs xxxC ', 0
-reflow_text:   db 'Refl: xxxs xxxC ', 0
+soak_text:     db 'Soak:    s    C ', 0
+reflow_text:   db 'Refl:    s    C ', 0
 blank_text:    db '                ', 0
 
 
 DSEG at 0x30
-SoakTime: ds 1
-SoakTemp: ds 1
-ReflowTime: ds 1
-ReflowTemp: ds 1
+SoakTime: ds 2
+SoakTemp: ds 2
+ReflowTime: ds 2
+ReflowTemp: ds 2
 x:   ds 4
 y:   ds 4
 bcd: ds 5
@@ -66,7 +65,7 @@ PB1: dbit 1
 PB2: dbit 1
 PB3: dbit 1
 PB4: dbit 1
-;systemstate is 1 if oven is on, 0 if oven is off 
+;systemstate is 1 if oven is on, 0 if oven is off
 SystemState: dbit 1
 mf: dbit 1
 
@@ -147,233 +146,270 @@ LCD_PB:
     mov c, P1.5
     mov PB4, c
     setb P1.3
-    
+   
     clr P0.0
     mov c, P1.5
     mov PB3, c
     setb P0.0
-    
+   
     clr P0.1
     mov c, P1.5
     mov PB2, c
     setb P0.1
-    
+   
     clr P0.2
     mov c, P1.5
     mov PB1, c
     setb P0.2
-    
+   
     clr P0.3
     mov c, P1.5
     mov PB0, c
     setb P0.3
-    
+   
 LCD_PB_Done:
     ret
 
 main:
-	mov sp, #0x7f
-	lcall Init_All
+mov sp, #0x7f
+lcall Init_All
     lcall LCD_4BIT
-	clr SystemState
+clr SystemState
 
-	clr a
-	mov SoakTemp, a
+clr a
+mov SoakTemp, a
     mov SoakTime, a
-    mov ReflowTemp, a   
+    mov ReflowTemp, a  
     mov ReflowTime, a
     mov x+0, a
     mov x+1, a
     mov x+2, a
     mov x+3, a
+    mov x+4, a
+    mov x+5, a
     mov y+0, a
     mov y+1, a
     mov y+2, a
     mov y+3, a
+mov y+4, a
+mov y+5, a
+
+
+
 
     ; initial messages in LCD
-	Set_Cursor(1, 1)
+Set_Cursor(1, 1)
     Send_Constant_String(#soak_text)
-	Set_Cursor(2, 1)
+Set_Cursor(2, 1)
     Send_Constant_String(#reflow_text)
 
     Set_Cursor(1,8)
     mov x, SoakTemp
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     Set_Cursor(1,13)
-	mov x, SoakTime
+mov x, SoakTime
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     Set_Cursor(2,8)
-	mov x, ReflowTime
+mov x, ReflowTime
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     mov x, ReflowTemp
     Set_Cursor(2,13)
     lcall hex2bcd
-	Display_BCD(bcd)
-	
-Forever:
-	lcall LCD_PB
-	;lcall Display_PushButtons_ADC	
+Display_BCD(bcd)
 
-	; If the oven is on, skip over param adjustments
-	jnb SystemState, Soak_Temp
+
+
+
+Forever:
+lcall LCD_PB
+;lcall Display_PushButtons_ADC
+
+; If the oven is on, skip over param adjustments
+jnb SystemState, Soak_Temp
     ljmp Start_Stop
 
 
 Soak_Temp:
-	; If PB1 is pressed, increase soak temp
-	jb PB1, Soak_Time
-	mov a, SoakTemp
-	add a, #0x01
-	mov SoakTemp, a
-	Set_Cursor(1,8)
-	mov x, SoakTemp
+; If PB1 is pressed, increase soak temp
+jb PB1, Soak_Time
+mov a, SoakTemp
+add a, #0x01
+mov SoakTemp, a
+mov x+0, SoakTemp+0
     lcall hex2bcd
-	Display_BCD(bcd)
-	
+    mov a, bcd+1
+    Set_Cursor(1,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,6)
+    Display_char(#0x20)
+    Set_Cursor(1,8)
+Display_BCD(bcd+0)
+
+
 Soak_Time:
-	; If PB2 is pressed, increase soak time
-	jb PB2, Reflow_Time
-	mov a, SoakTime
-	add a, #0x01
-	mov SoakTime, a
-	Set_Cursor(1,13)
-	mov x, SoakTime
+; If PB2 is pressed, increase soak time
+jb PB2, Reflow_Time
+mov a, SoakTime
+add a, #0x01
+mov SoakTime, a
+mov x+0, SoakTime+0
     lcall hex2bcd
-	Display_BCD(bcd)
+    mov a, bcd+1
+Set_Cursor(1,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(1,11)
+    Display_char(#0x20)
+    Set_Cursor(1,13)
+Display_BCD(bcd+0)
+
+
 
 Reflow_Time:
-	; If PB3 is pressed, increase reflow time
-	jb PB3, Reflow_Temp
-	mov a, ReflowTime
-	add a, #0x01
-	mov ReflowTime, a
-	Set_Cursor(2,8)
-	mov x, ReflowTime
+; If PB3 is pressed, increase reflow time
+jb PB3, Reflow_Temp
+mov a, ReflowTime
+add a, #0x01
+mov ReflowTime, a
+mov x+0, ReflowTime+0
     lcall hex2bcd
-	Display_BCD(bcd)
+    mov a, bcd+1
+Set_Cursor(2,6)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,6)
+    Display_char(#0x20)
+    Set_Cursor(2,8)
+Display_BCD(bcd+0)
+
 
 Reflow_Temp:
-	; If PB4 is pressed, increase reflow temp
-	jb PB4, Start_Stop
-	mov a, ReflowTemp
-	add a, #0x01
-	mov ReflowTemp, a
-    mov x, ReflowTemp
-    Set_Cursor(2,13)
+; If PB4 is pressed, increase reflow temp
+jb PB4, Start_Stop
+mov a, ReflowTemp
+add a, #0x01
+mov ReflowTemp, a
+mov x+0, ReflowTemp+0
     lcall hex2bcd
-	Display_BCD(bcd)
-	
-	; If PB0 is pressed, start/stop
+    mov a, bcd+1
+Set_Cursor(2,11)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,11)
+    Display_char(#0x20)
+    Set_Cursor(2,13)
+Display_BCD(bcd+0)
+
+
+
+; If PB0 is pressed, start/stop
 Start_Stop:
-	jb PB0, wait_50ms
-	cpl SystemState
-	jb SystemState, SystemStarted
+jb PB0, wait_50ms
+cpl SystemState
+jb SystemState, SystemStarted
     ljmp SystemStopped
 
 SystemStarted:
     ; Code to start or continue the system operation
     ; non-volatile storage
-	Set_Cursor(1,1)
-	Send_Constant_String(#blank_text)
-	Set_Cursor(2,1)
-	Send_Constant_String(#blank_text)
-	mov FSM1_state, #0
+Set_Cursor(1,1)
+Send_Constant_String(#blank_text)
+Set_Cursor(2,1)
+Send_Constant_String(#blank_text)
+;mov FSM1_state, #0
     ljmp Save_Parameters
 
 wait_50ms:
-	; Wait 50 ms between readings
-	mov R2, #50
-	lcall waitms
-	
-	ljmp Forever
+; Wait 50 ms between readings
+mov R2, #50
+lcall waitms
+
+ljmp Forever
 
 SystemStopped:
     ; Code to stop the system operation
     Set_Cursor(1, 1)
     Send_Constant_String(#soak_text)
-	Set_Cursor(2, 1)
+Set_Cursor(2, 1)
     Send_Constant_String(#reflow_text)
 
     Set_Cursor(1,8)
     mov x, SoakTemp
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     Set_Cursor(1,13)
-	mov x, SoakTime
+mov x, SoakTime
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     Set_Cursor(2,8)
-	mov x, ReflowTime
+mov x, ReflowTime
     lcall hex2bcd
-	Display_BCD(bcd)
+Display_BCD(bcd)
 
     mov x, ReflowTemp
     Set_Cursor(2,13)
     lcall hex2bcd
-	Display_BCD(bcd)
-	mov FSM1_state, #10
-	ljmp wait_50ms
+Display_BCD(bcd)
+;mov FSM1_state, #10
+ljmp wait_50ms
 
 
 Save_Parameters:  ;Saves the values that were set by the user for the FSM
-	CLR EA  ; MUST disable interrupts for this to work!
-	
-	MOV TA, #0aah ; CHPCON is TA protected
-	MOV TA, #55h
-	ORL CHPCON, #00000001b ; IAPEN = 1, enable IAP mode
-	
-	MOV TA, #0aah ; IAPUEN is TA protected
-	MOV TA, #55h
-	ORL IAPUEN, #00000001b ; APUEN = 1, enable APROM update
-	
-	MOV IAPCN, #PAGE_ERASE_AP ; Erase page 3f80h~3f7Fh
-	MOV IAPAH, #3fh
-	MOV IAPAL, #80h
-	MOV IAPFD, #0FFh
-	MOV TA, #0aah ; IAPTRG is TA protected
-	MOV TA, #55h
-	ORL IAPTRG, #00000001b ; write �1� to IAPGO to trigger IAP process
-	
-	MOV IAPCN, #BYTE_PROGRAM_AP
-	MOV IAPAH, #0x28h
-	
-	;Load 3f80h with SoakTime
-	MOV IAPAL, #00h
-	MOV IAPFD, SoakTime
-	MOV TA, #0aah
-	MOV TA, #55h
-	ORL IAPTRG,#00000001b
-	
-	;Load 3f81h with SoakTemp
-	MOV IAPAL, #01h
-	MOV IAPFD, SoakTemp
-	MOV TA, #0aah
-	MOV TA, #55h
-	ORL IAPTRG,#00000001b
-	
-	;Load 3f82h with ReflowTime
-	MOV IAPAL, #02h
-	MOV IAPFD, ReflowTime
-	MOV TA, #0aah
-	MOV TA, #55h
-	ORL IAPTRG,#00000001b
-	
-	;Load 3f83h with ReflowTemp
-	MOV IAPAL, #03h
-	MOV IAPFD, ReflowTemp
-	MOV TA, #0aah
-	MOV TA, #55h
-	ORL IAPTRG,#00000001b
-    
+CLR EA  ; MUST disable interrupts for this to work!
+
+MOV TA, #0aah ; CHPCON is TA protected
+MOV TA, #55h
+ORL CHPCON, #00000001b ; IAPEN = 1, enable IAP mode
+
+MOV TA, #0aah ; IAPUEN is TA protected
+MOV TA, #55h
+ORL IAPUEN, #00000001b ; APUEN = 1, enable APROM update
+
+MOV IAPCN, #PAGE_ERASE_AP ; Erase page 3f80h~3f7Fh
+MOV IAPAH, #3fh
+MOV IAPAL, #80h
+MOV IAPFD, #0FFh
+MOV TA, #0aah ; IAPTRG is TA protected
+MOV TA, #55h
+ORL IAPTRG, #00000001b ; write ?1? to IAPGO to trigger IAP process
+
+MOV IAPCN, #BYTE_PROGRAM_AP
+MOV IAPAH, #0x28h
+
+;Load 3f80h with SoakTime
+MOV IAPAL, #00h
+MOV IAPFD, SoakTime
+MOV TA, #0aah
+MOV TA, #55h
+ORL IAPTRG,#00000001b
+
+;Load 3f81h with SoakTemp
+MOV IAPAL, #01h
+MOV IAPFD, SoakTemp
+MOV TA, #0aah
+MOV TA, #55h
+ORL IAPTRG,#00000001b
+
+;Load 3f82h with ReflowTime
+MOV IAPAL, #02h
+MOV IAPFD, ReflowTime
+MOV TA, #0aah
+MOV TA, #55h
+ORL IAPTRG,#00000001b
+
+;Load 3f83h with ReflowTemp
+MOV IAPAL, #03h
+MOV IAPFD, ReflowTemp
+MOV TA, #0aah
+MOV TA, #55h
+ORL IAPTRG,#00000001b
+   
     ljmp wait_50ms
+     
 
 END
