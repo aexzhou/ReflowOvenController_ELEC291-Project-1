@@ -461,6 +461,7 @@ Main:
     lcall hex2bcd
 	Display_BCD(bcd)
 
+	;ljmp FSM1
     ; initial messages in LCD
 	; Set_Cursor(1, 1)
     ; Send_Constant_String(#test_message)
@@ -619,15 +620,17 @@ FSM1_state0:
 	; Wait 50 ms between readings
 	;mov R2, #50
 	;lcall waitms
+	ljmp LCD_PB
+lcddone:
 	ljmp paraminput
-
+paramindone:
 	; check for push button input, PB0 is start/stop
 	jb PB0, FSM1_state0_done
-	jnb PB0, $ ; Wait for key release
 	mov FSM1_state, #1
 
 FSM1_state0_done:
 	ljmp FSM_sys
+	;ljmp FSM1
 
 FSM1_state1:
 	cjne a, #1, FSM1_state2
@@ -794,7 +797,7 @@ Reflow_Time:
 
 Reflow_Temp:
 	; If PB4 is pressed, increase reflow temp
-	jb PB4, paramdone
+	jb PB4, saveit
 	mov a, ReflowTemp
 	add a, #0x01
 	mov ReflowTemp, a
@@ -810,9 +813,8 @@ Reflow_Temp:
     Set_Cursor(2,13)
 	Display_BCD(bcd+0)
 
-paramdone:
+saveit:
 	ljmp save_parameters
-	ret
 
 LCD_PB:
 ; Set variables to 1: 'no push button pressed'
@@ -878,7 +880,7 @@ LCD_PB:
     setb P0.3
    
 LCD_PB_Done:
-    ret
+    ljmp lcddone
 
 save_parameters:
 	CLR EA  ; MUST disable interrupts for this to work!
@@ -930,7 +932,7 @@ save_parameters:
 	MOV TA, #55h
 	ORL IAPTRG,#00000001b
 
-	ret
+	ljmp paramindone
 
 END
 
