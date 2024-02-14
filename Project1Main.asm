@@ -108,7 +108,7 @@ $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $include(adc_flash.inc)
 $include(math32.inc)
 $include(troubleshooter.inc) 
-$include(temp_read.inc)
+;$include(temp_read.inc)
 $LIST
 
 
@@ -288,6 +288,10 @@ SendBin:
 	lcall putchar
 	clr A
 	mov a, temp_mc+3
+	lcall putchar
+
+	clr A					; sends current fsm state to python
+	mov a, FSM1_state 
 	lcall putchar
 
 	clr A					; Sends data_out
