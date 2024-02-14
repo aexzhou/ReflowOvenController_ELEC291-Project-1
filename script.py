@@ -63,8 +63,9 @@ def read_serial_data():
                 outval = format(value/1000, '.3f')
 
                 #tempcom = hex(command)
+                fsm_state_bin = bin(fsm_state)
 
-                print(f"Temp: {outval} | Curr FSM State: {fsm_state} | data_out[31:0]: {command}")
+                print(f"Temp: {outval:>8} | FSM State: {fsm_state:>4} = {fsm_state_bin:<10} | data_out[31:0]: {command}")
                 data_queue.put((t, float(outval)))
                 t += 1
 

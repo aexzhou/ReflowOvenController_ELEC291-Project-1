@@ -298,6 +298,10 @@ SendBin:
 	mov a, temp_mc+3
 	lcall putchar
 
+	clr A
+	mov a, FSM1_state
+	lcall putchar
+
 	clr A					; Sends data_out
 	mov a, data_out+0
 	lcall putchar
@@ -738,7 +742,7 @@ Soak_Temp:
 	mov a, SoakTemp
 	add a, #0x01
 	mov SoakTemp, a
-	mov x+0, SoakTemp+0
+	mov x+0, SoakTemp
 	mov x+1, #0
 	mov x+2, #0
 	mov x+3, #0
@@ -758,7 +762,7 @@ Soak_Time:
 	mov a, SoakTime
 	add a, #0x01
 	mov SoakTime, a
-	mov x+0, SoakTime+0
+	mov x+0, SoakTime
 	mov x+1, #0
 	mov x+2, #0
 	mov x+3, #0
@@ -776,7 +780,7 @@ Reflow_Time:
 	mov a, ReflowTime
 	add a, #0x01
 	mov ReflowTime, a
-	mov x+0, ReflowTime+0
+	mov x+0, ReflowTime
 	mov x+1, #0
 	mov x+2, #0
 	mov x+3, #0
@@ -794,7 +798,7 @@ Reflow_Temp:
 	mov a, ReflowTemp
 	add a, #0x01
 	mov ReflowTemp, a
-	mov x+0, ReflowTemp+0
+	mov x+0, ReflowTemp
 	mov x+1, #0
 	mov x+2, #0
 	mov x+3, #0
