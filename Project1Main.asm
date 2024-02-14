@@ -107,9 +107,9 @@ fah_message:      db 'FARENHET READING', 0
 abort_message: 	  db 'ABORTABORTABORT ', 0
 state_message:	  db 'Current State:  ', 0
 error_message:	  db 'State Error     ', 0
-soak_text:     db 'Soak:    s    C ', 0
-reflow_text:   db 'Refl:    s    C ', 0
-blank_text:    db '                ', 0
+soak_text:     	  db 'Soak:    s    C ', 0
+reflow_text:   	  db 'Refl:    s    C ', 0
+blank_text:       db '                ', 0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -413,11 +413,37 @@ Main:
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
-	mov ReflowTemp, #220
-	mov ReflowTime, #30
-	mov SoakTime, #60
+	mov ReflowTemp, #0
+	mov ReflowTime, #0
+	mov SoakTime, #0
 	mov abort_time, #0
-	mov SoakTemp, #150
+	mov SoakTemp, #0
+
+	; initial messages in LCD
+	Set_Cursor(1, 1)
+    Send_Constant_String(#soak_text)
+	Set_Cursor(2, 1)
+    Send_Constant_String(#reflow_text)
+
+    Set_Cursor(1,8)
+    mov x, SoakTemp
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(1,13)
+	mov x, SoakTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    Set_Cursor(2,8)
+	mov x, ReflowTime
+    lcall hex2bcd
+	Display_BCD(bcd)
+
+    mov x, ReflowTemp
+    Set_Cursor(2,13)
+    lcall hex2bcd
+	Display_BCD(bcd)
 
     ; initial messages in LCD
 	; Set_Cursor(1, 1)
@@ -565,13 +591,13 @@ FSM1_state0:
 	;Display_BCD(#0x00)
 
 	; Wait 50 ms between readings
-	mov R2, #50
-	lcall waitms
+	;mov R2, #50
+	;lcall waitms
 	ljmp paraminput
 
-	; check for push button input
-	jb START_BUTTON, FSM1_state0_done
-	jnb START_BUTTON, $ ; Wait for key release
+	; check for push button input, PB0 is start/stop
+	jb PB0, FSM1_state0_done
+	jnb PB0, $ ; Wait for key release
 	mov FSM1_state, #1
 
 FSM1_state0_done:
@@ -683,32 +709,6 @@ paraminput:
 ;--------------------------------------------;
 ;			OVEN PARAMETER INPUTS			 ;
 ;--------------------------------------------;
-	; initial messages in LCD
-	Set_Cursor(1, 1)
-    Send_Constant_String(#soak_text)
-	Set_Cursor(2, 1)
-    Send_Constant_String(#reflow_text)
-
-	Set_Cursor(1,8)
-    mov x, SoakTemp
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    Set_Cursor(1,13)
-	mov x, SoakTime
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    Set_Cursor(2,8)
-	mov x, ReflowTime
-    lcall hex2bcd
-	Display_BCD(bcd)
-
-    mov x, ReflowTemp
-    Set_Cursor(2,13)
-    lcall hex2bcd
-	Display_BCD(bcd)
-	clr seconds_flag
 
 Soak_Temp:
 	; If PB1 is pressed, increase soak temp
@@ -798,7 +798,7 @@ LCD_PB:
 
     jb P1.5, LCD_PB_Done
 
-    ; Debounce
+    ;Debounce
     mov R2, #50
     lcall waitms
 
