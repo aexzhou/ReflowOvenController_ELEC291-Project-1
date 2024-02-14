@@ -298,6 +298,10 @@ SendBin:
 	mov a, temp_mc+3
 	lcall putchar
 
+	clr A
+	mov a, FSM1_state
+	lcall putchar
+
 	clr A					; Sends data_out
 	mov a, data_out+0
 	lcall putchar
@@ -426,21 +430,33 @@ Main:
     Send_Constant_String(#reflow_text)
 
     Set_Cursor(1,8)
-    mov x, SoakTemp
+    mov x+0, SoakTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
     Set_Cursor(1,13)
-	mov x, SoakTime
+	mov x+0, SoakTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
     Set_Cursor(2,8)
-	mov x, ReflowTime
+	mov x+0, ReflowTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
-    mov x, ReflowTemp
+    mov x+0, ReflowTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     Set_Cursor(2,13)
     lcall hex2bcd
 	Display_BCD(bcd)
@@ -466,6 +482,7 @@ TEMP_READ:
 	ljmp read_led
 
 Avg_ADC:						; function for ADC noise reduction
+	;push AR5
     Load_X(0)
     mov R5, #255
 sum_loop_avg:
@@ -478,6 +495,7 @@ sum_loop_avg:
     djnz R5, sum_loop_avg
     Load_y(255)
     lcall div32
+	;pop AR5
     ret
 
 read_led:
@@ -549,7 +567,9 @@ export_to_main:					; exports temp reading to rest of code
     mov x+3, temp_mc+3
     Load_y(1000)
     lcall div32
-    mov tempc, x+0              ; Both tempc and x now stores temp (C)		
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)
+
+	Load_X(0)
 ;lcall TEMP_READ
 
 ; export_to_bcd:					; sends temp reading in C to bcd;
@@ -561,6 +581,12 @@ Export:							; Data export to python
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
+
+mov data_out+0, SoakTime
+mov data_out+1, SoakTemp
+mov data_out+2, ReflowTime	
+mov data_out+3, ReflowTemp
+
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */
@@ -716,7 +742,10 @@ Soak_Temp:
 	mov a, SoakTemp
 	add a, #0x01
 	mov SoakTemp, a
-	mov x+0, SoakTemp+0
+	mov x+0, SoakTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
     mov a, bcd+1
     Set_Cursor(1,6)
@@ -733,9 +762,11 @@ Soak_Time:
 	mov a, SoakTime
 	add a, #0x01
 	mov SoakTime, a
-	mov x+0, SoakTime+0
+	mov x+0, SoakTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(1,11)
     Display_BCD(bcd+1)
     Set_Cursor(1,11)
@@ -749,9 +780,11 @@ Reflow_Time:
 	mov a, ReflowTime
 	add a, #0x01
 	mov ReflowTime, a
-	mov x+0, ReflowTime+0
+	mov x+0, ReflowTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(2,6)
     Display_BCD(bcd+1)
     Set_Cursor(2,6)
@@ -765,9 +798,11 @@ Reflow_Temp:
 	mov a, ReflowTemp
 	add a, #0x01
 	mov ReflowTemp, a
-	mov x+0, ReflowTemp+0
+	mov x+0, ReflowTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(2,11)
     Display_BCD(bcd+1)
     Set_Cursor(2,11)
