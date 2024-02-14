@@ -587,8 +587,8 @@ FSM1:
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
 	mov pwm, #0
-	;Set_Cursor(1,15)
-	;Display_BCD(#0x00)
+	Set_Cursor(1,16)
+	Display_BCD(#0x00)
 
 	; Wait 50 ms between readings
 	;mov R2, #50
