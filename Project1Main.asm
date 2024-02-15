@@ -202,10 +202,6 @@ InitAll:
 
 	setb EA ; Enable global interrupts
 
-	ret
-
-
-Timer0_Init:
 	orl CKCON, #0b00001000 ; Input for timer 0 is sysclk/1
 	mov a, TMOD
 	anl a, #0xf0 ; 11110000 Clear the bits for timer 0
@@ -215,8 +211,9 @@ Timer0_Init:
 	mov TL0, #low(65536-(CLK/TIMER0_RATE))
 	; Enable the timer and interrupts
     setb ET0  ; Enable timer 0 interrupt
-    clr TR0  ; Start timer 0
+    setb TR0  ; Start timer 0
 	ret
+
 
 ;---------------------------------;
 ; ISR for timer 0.  Set to execute;
@@ -225,9 +222,9 @@ Timer0_Init:
 ;---------------------------------;
 Timer0_ISR:
 	
-	clr TR0
-	mov TH0, frequency+0
-	mov TH1, frequency+1
+	clr TR0	; Stop timer 0 
+	mov TH0, frequency+0	; High byte of timer 1 is set to the low byte of frequency   
+	mov TH1, frequency+1	; Low  byte of timer 1 is set to the high byte of frequency
 	setb TR0
 	cpl SOUND_OUT ; Connect speaker the pin assigned to 'SOUND_OUT'!
 	reti
@@ -237,27 +234,27 @@ Timer0_ISR:
 ;---------------------------------;
 Timer2_ISR:
 	clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
-	push psw
-	push acc
+	push psw	; Store this for when our interrupt is finished since we modify a
+	push acc	; Same as push psw
 	
 	; // Toggles PWN (cpl c) based on value in pwm
-	inc pwm_counter
-	clr c
-	mov a, pwm
-	subb a, pwm_counter ; If pwm_counter <= pwm then c=1
-	cpl c
+	inc pwm_counter	; Counter for 10 ms
+	clr c	; Clear carry bit for comparison
+	mov a, pwm	; Put the pulse width in the accumulator 
+	subb a, pwm_counter ; If pwm_counter <= pwm then c=1	; We need to increment pwmcounter if it's smaller than pwm 
+	cpl c	
 	mov PWM_OUT, c
 
 	; // Time Checking (for system, not pwm)
-	inc count10ms
-	mov a, count10ms
+	inc count10ms	; This should be the same as pwm_counter 
+	mov a, count10ms	
 	cjne a, #50, $+2						; $+2 jumps to the instruction 2 lines (bytes) down
 	setb half_s_flag						; to indicate half seconds passed, must clear after use
-    cjne a, #100, Timer2_ISR_Continued
-	; //
-
+    cjne a, #100, Timer2_ISR_Every_Second	; not one second or one half second if this fails 
+	; //			If we haven't jumped then we have to keep pwm_counter and count10ms the same
+	ljmp Timer2_ISR_Continued	; We can safely assume since both tests failed we now need to do our abort checks 
 ; *** code below here executes every 1 second ***
-Timer2_ISR_Every_Second:
+Timer2_ISR_Every_Second:					
 	mov count10ms, #0						; reset 10 ms counters
 	mov pwm_counter, #0
 	setb half_s_flag						; 1 = 0.5*2
@@ -275,16 +272,16 @@ Abort_Check0:
 ; Check if temperature is above 240. If so, abort
 	clr c
 	mov a, tempc
-	subb a, #240						; if a is greater than 240, there will be no carry bit so we need to abort
-	jc Abort_Check1						; if temperature is below 240, continue to next check
+	subb a, #240						; if a is below 240, we have a carry bit so continue to next check
+	jc Abort_Check1						; jump if carry to the next check
 	; abort routine
-	mov FSM1_state, #10
+	mov FSM1_state, #10 				; Since we didn't jump to the next abort_check we need to abort here
     ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
 
 Abort_Check1:
 ; Check if temperature is below 50. If so, check for how long
 	mov a, tempc
-	clr c
+	clr c						; a < 50 = carry, a > 50 = no carry
 	subb a, #50							; if tempc (stored in a) is less than 50, there will be a carry bit
 	jnc Timer2_ISR_abort_done			; skip the abort checks if temperature is above 50
 
@@ -293,10 +290,10 @@ Abort_Check2:
 	inc abort_time
 	mov a, abort_time
 	clr c
-	subb a, #5							; if abort_time is less than 60, there will be a carry bit
-	jc Timer2_ISR_done					; if there is a carry 
+	subb a, #15							; if abort_time is less than 60, there will be a carry bit, no carry means we abort 
+	jc Timer2_ISR_done					; if there is a carry go to abort
 	mov FSM1_state, #10
-	ljmp Timer2_ISR_done
+	ljmp Timer2_ISR_done	; no carry, so we need to keep checking temp which we can do by jumping to FSM_sys
 
 Timer2_ISR_abort_done:
 	mov abort_time, #0
@@ -412,10 +409,9 @@ Main:
     
     lcall InitAll
     lcall LCD_4BIT
-    lcall Timer0_Init
 
-    clr half_s_flag 
 	; Initialize all variables
+    clr half_s_flag 
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
