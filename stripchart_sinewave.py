@@ -7,7 +7,7 @@ import serial
 xsize=100
    
 ser = serial.Serial(
-    port='COM5',
+    port='COM6',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_TWO,

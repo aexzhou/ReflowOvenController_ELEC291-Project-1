@@ -120,7 +120,6 @@ amb_temp: ds 4 ; ambient temperature read by LM335
 bcd: ds 5
 
 DSEG
-pwm: ds 1
 state: ds 1
 temp_soak: ds 1
 Time_soak: ds 1
@@ -682,7 +681,7 @@ continue:
 	mov x+1, R4
 	mov x+2, #0
 	mov x+3, #0
-	Load_y(50300) ; VCC voltage measured
+	Load_y(53800) ; VCC voltage measured
 	lcall mul32
 	Load_y(4095) ; 2^12-1
 	lcall div32

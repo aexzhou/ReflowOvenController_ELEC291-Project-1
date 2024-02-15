@@ -165,7 +165,7 @@ setb ADCS ;  ADC start trigger signal
     mov R0, A
 ret
 
-; Send a character using the serial port
+; Send a character using the serial port 
 putchar:
     jnb TI, putchar
     clr TI
@@ -188,7 +188,7 @@ SendStringDone:
 
 main:
 mov sp, #0x7f
-lcall Init_All
+lcall Init_All  
     lcall LCD_4BIT
    
     ; initial messages in LCD
