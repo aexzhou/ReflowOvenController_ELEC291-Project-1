@@ -25,8 +25,8 @@ TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
-GAIN				EQU 25
-V2C_DIVISOR			EQU 1051
+;GAIN				EQU 25
+;V2C_DIVISOR			EQU 1051
 
 ; /*** PORT DEFINITIONS ***/
 LCD_RS 			equ P1.3
@@ -38,30 +38,11 @@ LCD_D7 			equ P0.3
 PWM_OUT 		equ P1.0
 START_BUTTON 	equ P0.4
 ; Analog Input Port Numbering
-LED_PORT 		equ 0x00			; AIN port numbers
-LM335_PORT 		equ 0x05
-OPAMP_PORT 		equ 0x07
-AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
-SOUND_OUT       equ P1.6
-
-FREQ_D7  EQU 62002
-FREQ_Bb7 EQU 63310
-FREQ_F7  EQU 62564
-
-; /*** VECTORS ***/
-org 0000H
-   	ljmp Main
-
-org 000BH					; Timer/Counter 0 overflow interrupt vector
-	ljmp Timer0_ISR
-
-org 002BH					; timer 2 enable
-	ljmp Timer2_ISR
-
-;org 3000H					; lookup table stored at APROM address starting 0x4000
-; 	$NOLIST
- 	;$include(thermodata.inc)
-; 	$List
+; LED_PORT 		equ 0x00			; AIN port numbers
+; LM335_PORT 		equ 0x05
+; OPAMP_PORT 		equ 0x07
+; AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
+; SOUND_OUT       equ P1.6
 
 ; /*** DIRECT ACCESS VARIABLES @RAM 0x30 -> 0x7F ***/
 DSEG at 30H
@@ -70,14 +51,13 @@ y:   			ds 4
 data_out:   	ds 4		; for python
 bcd: 			ds 5		; for display
 
-VLED_ADC: 		ds 2		; for temperature 
+;VLED_ADC: 		ds 2		; for temperature 
 dtemp:  		ds 2
 tempc: 			ds 1
 temp_mc:		ds 4
 OPAMP_temp: 	ds 4
 temp_lm:   		ds 4
-temp_offset:	ds 2
-mV_offset:  	ds 2
+;mV_offset:  	ds 2
 
 FSM1_state:  	ds 1		; fsm states
 
@@ -92,24 +72,52 @@ ReflowTime:		ds 1
 SoakTime:		ds 1
 SoakTemp:		ds 1
 
-Val_test:		ds 4
-Val_temp:		ds 4
-frequency:      ds 2
 
 ; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
 BSEG 
 mf: 			dbit 1
 seconds_flag: 	dbit 1
 s_flag: 		dbit 1
-half_s_flag:    dbit 1
-PB0: 			dbit 1
-PB1: 			dbit 1
-PB2: 			dbit 1
-PB3: 			dbit 1
-PB4: 			dbit 1
+PB0: dbit 1
+PB1: dbit 1
+PB2: dbit 1
+PB3: dbit 1
+PB4: dbit 1
+PB5: dbit 1
+PB6: dbit 1
+PB7: dbit 1
 
 ; /*** CODE SEGMENT ***/
 CSEG
+
+; Reset vector
+org 0x0000
+    ljmp main
+
+; External interrupt 0 vector (not used in this code)
+org 0x0003
+	reti
+
+; Timer/Counter 0 overflow interrupt vector (not used in this code)
+org 0x000B
+	reti
+
+; External interrupt 1 vector (not used in this code)
+org 0x0013
+	reti
+
+; Timer/Counter 1 overflow interrupt vector (not used in this code)
+org 0x001B
+	reti
+
+; Serial port receive/transmit interrupt vector (not used in this code)
+org 0x0023 
+	reti
+	
+; Timer/Counter 2 overflow interrupt vector
+org 0x002B
+	ljmp Timer2_ISR
+
 ;                     1234567890123456    <- This helps determine the location of the counter
 test_message:     db '****LOADING*****', 0
 value_message:    db 'TEMP:           ', 0
@@ -129,6 +137,84 @@ $include(math32.inc)
 $include(troubleshooter.inc) 
 ;$include(temp_read.inc)
 $LIST
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+Send_BCD mac
+	push ar0
+	mov r0, %0
+	lcall ?Send_BCD
+	pop ar0
+	endmac
+?Send_BCD:
+	push acc
+	; Write most significant digit
+	mov a, r0
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	; write least significant digit
+	mov a, r0
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	pop acc
+	ret
+	
+putchar:
+	jnb TI, putchar
+	clr TI
+	mov SBUF, a
+	ret
+
+waitms:
+	lcall wait_1ms
+	djnz R2, waitms
+	ret
+
+wait_1ms:
+	clr	TR0 ; Stop timer 0
+	clr	TF0 ; Clear overflow flag
+	mov	TH0, #high(TIMER0_RELOAD_1MS)
+	mov	TL0,#low(TIMER0_RELOAD_1MS)
+	setb TR0
+	jnb	TF0, $ ; Wait for overflow
+	ret
+
+Read_ADC:
+	clr ADCF
+	setb ADCS ;  ADC start trigger signal
+    jnb ADCF, $ ; Wait for conversion complete
+    
+    ; Read the ADC result and store in [R1, R0]
+    mov a, ADCRH   
+    swap a
+    push acc
+    anl a, #0x0f
+    mov R1, a
+    pop acc
+    anl a, #0xf0
+    orl a, ADCRL
+    mov R0, A
+	ret
+	
+	
+	Avg_ADC:						; function for ADC noise reduction
+    Load_X(0)
+    mov R5, #100
+
+	sum_loop_avg:
+    lcall Read_ADC
+    mov y+3, #0
+    mov y+2, #0
+    mov y+1, R1
+    mov y+0, R0
+    lcall add32
+    djnz R5, sum_loop_avg
+    Load_y(100)
+    lcall div32
+    ret
+
+
 
 
 InitAll:
@@ -156,36 +242,35 @@ InitAll:
 	orl	TMOD, #0x20 			; Timer 1 Mode 2
 	mov	TH1, #TIMER1_RELOAD
 	setb TR1
-
 	; /*** INITIALIZE THE REST ***/
-	orl	CKCON, #0x10 			; CLK is the input for timer 1
-	orl	PCON, #0x80 			; Bit SMOD=1, double baud rate
-	mov	SCON, #0x52
-	anl	T3CON, #0b11011111
-	anl	TMOD, #0x0F 			; Clear the configuration bits for timer 1
-	orl	TMOD, #0x20 			; Timer 1 Mode 2
-	mov	TH1, #TIMER1_RELOAD 	; TH1=TIMER1_RELOAD;
-	setb TR1
-	
 	; Using timer 0 for delay functions.  Initialize here:
 	clr	TR0 					; Stop timer 0
 	orl	CKCON,#0x08 			; CLK is the input for timer 0
 	anl	TMOD,#0xF0				; Clear the configuration bits for timer 0
 	orl	TMOD,#0x01 				; Timer 0 in Mode 1: 16-bit timer
-	
 	; Initialize the pin used by the ADC (P1.1) as input.
-	orl	P1M1, #0b00000010
-	anl	P1M2, #0b11111101
-	
+	orl	P1M1, #0b00000010	;	Mode 1 select for the pin must be 1, 
+	anl	P1M2, #0b11111101	;	Mode 2 select for the pin should be 0, keeping the rest the same
+	; Initialize the pin used by the ADC (P1.7, AIN 0)
+	orl P1M2, #0b10000000
+	anl P1M2, #0b01111111
+
+	orl P1M1, #0b01000000
+	anl P1M2, #0b01000000
+
 	; Initialize and start the ADC:
 	anl ADCCON0, #0xF0
 	orl ADCCON0, #0x07 			; Select channel 7
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x00 			; Select channel 0
+	anl ADCCON0, #0xF0
+	anl ADCCON0, #0x01 			; Select chanel 1 for lm335 analog input 
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #0b10000001	; P1.1 is analog input
+	orl AINDIDS, #0b10000000	; P1.1 is analog input
+	orl AINDIDS, #0b00000001	; P1.7 AIN0
+	orl AINDIDS, #0b01000000
 	orl ADCCON1, #0x01 			; Enable ADC
-	mov temp_offset, #0x00
-
 	; /* TIMER 2 INIT * /
 	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
 	mov TH2, #high(TIMER2_RELOAD)
@@ -199,9 +284,7 @@ InitAll:
 	; Enable the timer and interrupts
 	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
     setb TR2  ; Enable timer 2
-
 	setb EA ; Enable global interrupts
-
 	orl CKCON, #0b00001000 ; Input for timer 0 is sysclk/1
 	mov a, TMOD
 	anl a, #0xf0 ; 11110000 Clear the bits for timer 0
@@ -214,152 +297,77 @@ InitAll:
     setb TR0  ; Start timer 0
 	ret
 
-
-;---------------------------------;
-; ISR for timer 0.  Set to execute;
-; every 1/4096Hz to generate a    ;
-; 2048 Hz wave at pin SOUND_OUT   ;
-;---------------------------------;
-Timer0_ISR:
-	
-	clr TR0	; Stop timer 0 
-	mov TH0, frequency+0	; High byte of timer 1 is set to the low byte of frequency   
-	mov TH1, frequency+1	; Low  byte of timer 1 is set to the high byte of frequency
-	setb TR0
-	cpl SOUND_OUT ; Connect speaker the pin assigned to 'SOUND_OUT'!
-	reti
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ALL OF OUR RETURNING FUNCTIONS TO AVOID LOOP ISSUES 
 
 ;---------------------------------;
 ; ISR for Timer 2                 ;
 ;---------------------------------;
 Timer2_ISR:
 	clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
-	push psw	; Store this for when our interrupt is finished since we modify a
-	push acc	; Same as push psw
+	push psw
+	push acc
 	
-	; // Toggles PWN (cpl c) based on value in pwm
-	inc pwm_counter	; Counter for 10 ms
-	clr c	; Clear carry bit for comparison
-	mov a, pwm	; Put the pulse width in the accumulator 
-	subb a, pwm_counter ; If pwm_counter <= pwm then c=1	; We need to increment pwmcounter if it's smaller than pwm 
-	cpl c	
-	mov PWM_OUT, c
-
-	; // Time Checking (for system, not pwm)
-	inc count10ms	; This should be the same as pwm_counter 
-	mov a, count10ms	
-	cjne a, #50, $+2						; $+2 jumps to the instruction 2 lines (bytes) down
-	setb half_s_flag						; to indicate half seconds passed, must clear after use
-    cjne a, #100, Timer2_ISR_Every_Second	; not one second or one half second if this fails 
-	; //			If we haven't jumped then we have to keep pwm_counter and count10ms the same
-	ljmp Timer2_ISR_Continued	; We can safely assume since both tests failed we now need to do our abort checks 
-; *** code below here executes every 1 second ***
-Timer2_ISR_Every_Second:					
-	mov count10ms, #0						; reset 10 ms counters
+	inc pwm_counter
+	clr c
+	mov a, pwm
+	subb a, pwm_counter ; If pwm_counter <= pwm then c=1
+	cpl c
+	mov oven_out, c
+	
+	mov a, pwm_counter
+	cjne a, #100, Timer2_ISR_done
 	mov pwm_counter, #0
-	setb half_s_flag						; 1 = 0.5*2
-	setb s_flag								; to tell system 1 second has passed
-	inc seconds
-
-;  *** continues with the ISR, code below this lable executes every interupt (10ms) *** 
-Timer2_ISR_Continued:	
-
-	mov a, FSM1_state
-	cjne a, #0, Abort_Check0				; For abort check, the abort should not trigger if you are in state 0
-	ljmp Timer2_ISR_done
-	
-Abort_Check0:
-; Check if temperature is above 240. If so, abort
-	clr c
-	mov a, tempc
-	subb a, #240						; if a is below 240, we have a carry bit so continue to next check
-	jc Abort_Check1						; jump if carry to the next check
-	; abort routine
-	mov FSM1_state, #10 				; Since we didn't jump to the next abort_check we need to abort here
-    ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
-
-Abort_Check1:
-; Check if temperature is below 50. If so, check for how long
-	mov a, tempc
-	clr c						; a < 50 = carry, a > 50 = no carry
-	subb a, #50							; if tempc (stored in a) is less than 50, there will be a carry bit
-	jnc Timer2_ISR_abort_done			; skip the abort checks if temperature is above 50
-
-Abort_Check2:
-; Check if has been 60 seconds (at below 50 degrees)
-	inc abort_time
-	mov a, abort_time
-	clr c
-	subb a, #15							; if abort_time is less than 60, there will be a carry bit, no carry means we abort 
-	jc Timer2_ISR_done					; if there is a carry go to abort
-	mov FSM1_state, #10
-	ljmp Timer2_ISR_done	; no carry, so we need to keep checking temp which we can do by jumping to FSM_sys
-
-Timer2_ISR_abort_done:
-	mov abort_time, #0
+	inc seconds ; It is super easy to keep a seconds count here
+	setb s_flag
 
 Timer2_ISR_done:
 	pop acc
 	pop psw
 	reti
 
-line1:
-	DB 'PWM Example     '
-	DB 0
-line2:
-	DB 'Chk pin 15:P1.0 '
-	DB 0
 
-; /* Send a character using the serial port */
-putchar:
-    jnb TI, putchar
-    clr TI
-    mov SBUF, a
-    ret
+;line1:
+;	DB 'PWM Example     '
+;	DB 0
+;line2:
+;	DB 'Chk pin 15:P1.0 '
+;	DB 0
+
 
 ; Send a constant-zero-terminated string using the serial port
-SendString:
-    clr A
-    movc A, @A+DPTR
-    jz SendStringDone
-    lcall putchar
-    inc DPTR
-    sjmp SendString
-SendStringDone:
-    ret
 
 ; Sends binary data to Python via putchar
-SendBin:					
-	clr A					; Sends temp_mc
-	mov a, temp_mc+0
-	lcall putchar
-	clr A
-	mov a, temp_mc+1
-	lcall putchar
-	clr A
-	mov a, temp_mc+2
-	lcall putchar
-	clr A
-	mov a, temp_mc+3
-	lcall putchar
-
-	clr A
-	mov a, FSM1_state
-	lcall putchar
-
-	clr A					; Sends data_out
-	mov a, data_out+0
-	lcall putchar
-	clr A
-	mov a, data_out+1
-	lcall putchar
-	clr A					; Sends data_out
-	mov a, data_out+2
-	lcall putchar
-	clr A
-	mov a, data_out+3
-	lcall putchar
-	ret
+;SendBin:					
+;	clr A					; Sends temp_mc
+;	mov a, temp_mc+0
+;	lcall putchar
+;	clr A
+;	mov a, temp_mc+1
+;	lcall putchar
+;	clr A
+;	mov a, temp_mc+2
+;	lcall putchar
+;	clr A
+;	mov a, temp_mc+3
+;	lcall putchar
+;
+;	clr A
+;	mov a, FSM1_state
+;	lcall putchar
+;
+;	clr A					; Sends data_out
+;	mov a, data_out+0
+;	lcall putchar
+;	clr A
+;	mov a, data_out+1
+;	lcall putchar
+;	clr A					; Sends data_out
+;	mov a, data_out+2
+;	lcall putchar
+;	clr A
+;	mov a, data_out+3
+;	lcall putchar
+;	ret
 
 ASCII_CHAR: 
 	db '0123456789ABCDEF'
@@ -369,50 +377,20 @@ Hello_World:
 New_Line:
 	DB '\r', '\n', 0
 
-; /* 1ms DELAY FUNCTIONS */
-wait_1ms:
-	clr	TR0 ; Stop timer 0
-	clr	TF0 ; Clear overflow flag
-	mov	TH0, #high(TIMER0_RELOAD_1MS)
-	mov	TL0,#low(TIMER0_RELOAD_1MS)
-	setb TR0
-	jnb	TF0, $ ; Wait for overflow
-	ret
-waitms:
-	lcall wait_1ms
-	djnz R2, waitms
-	ret
-
-; /* READ ADC */
-Read_ADC:
-	clr ADCF
-	setb ADCS ;  ADC start trigger signal
-    jnb ADCF, $ ; Wait for conversion complete
-    
-    ; Read the ADC result and store in [R1, R0]
-    mov a, ADCRL
-    anl a, #0x0f
-    mov R0, a
-    mov a, ADCRH   
-    swap a
-    push acc
-    anl a, #0x0f
-    mov R1, a
-    pop acc
-    anl a, #0xf0
-    orl a, R0
-    mov R0, A
-	ret
 
 Main:
     mov SP, #0x7F 	; Set the stack pointer to the begining of idata
     
-    lcall InitAll
-    lcall LCD_4BIT
+    lcall InitAll	; Initializes timers, analog inputs.
+    lcall LCD_4BIT	; Configures our LCD for 4 bit mode 
 
 	; Initialize all variables
-    clr half_s_flag 
-	setb seconds_flag
+	Load_y(0)
+	mov data_out  #0
+	mov dtemp  #0
+	mov temp_mc  #0
+	mov OPAMP_temp  #0
+	mov temp_lm  #0
 	mov FSM1_state, #0
 	mov seconds, #0
 	mov ReflowTemp, #0
@@ -423,6 +401,18 @@ Main:
 	mov data_out, #0 
 	mov tempc, #0
 	mov pwm, #0
+	clr mf
+	clr seconds_flag
+	clr s_flag
+	clr PB0
+	clr PB1
+	clr PB2
+	clr PB3
+	clr PB4
+	clr PB5
+	clr PB6
+	clr PB7
+
 
 	;initial messages in LCD
 	Set_Cursor(1, 1)
@@ -472,75 +462,48 @@ FSM_sys:
 ; Example:  2.07 V would be represented by the number
 ;           20700. (The real value * 1000).
 TEMP_READ:
-	ljmp read_led
-
-Avg_ADC:						; function for ADC noise reduction
-	;push AR5
-    Load_X(0)
-    mov R5, #100
-sum_loop_avg:
-    lcall Read_ADC
-    mov y+3, #0
-    mov y+2, #0
-    mov y+1, R1
-    mov y+0, R0
-    lcall add32
-    djnz R5, sum_loop_avg
-    Load_y(100)
-    lcall div32
-	;pop AR5
-    ret
-
-read_led:
-    anl ADCCON0, #0xf0          ; read led voltage
-    orl ADCCON0, #LED_PORT
-    lcall Avg_ADC
-    mov VLED_ADC+0, R0          ; save reading to VLED_ADC
-	mov VLED_ADC+1, R1
 
 read_lm335:
     anl ADCCON0, #0xf0          ; *** LM335 ***
-    orl ADCCON0, #LM335_PORT
+    orl ADCCON0, #0x01			; AIN1 
     lcall Avg_ADC
     mov x+0, R0 			    ; load lm335 reading to x
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(260000)              ; load const vled ref into y      
-    lcall mul32
-    mov y+0, VLED_ADC+0 	    ; import vled reading into y
-	mov y+1, VLED_ADC+1         
-	mov y+2, #0 			
-	mov y+3, #0
-    lcall div32
-    Load_y(273000)			    ; adjust to 273.000 C offset
-	lcall sub32	                ; result of lm335 temp remains in x
-	mov temp_lm+0, x+0          ; store 3 decimal lm335 value for later
+	Load_y(50300) ; VCC voltage measured
+	lcall mul32	  ; VCC measured (50.3) * 4095
+	Load_y(4095) ; 2^12-1
+	lcall div32
+	Load_y(27300) ; / 27.3
+	lcall sub32
+	Load_y(100)
+	lcall mul32	; * 100			; Code from lab 3, (((x * 50300)/4095)-27300) * 100 
+	mov temp_lm+0, x+0          ; store 3 decimal lm335 value for later in degrees celcius
     mov temp_lm+1, x+1				
     mov temp_lm+2, x+2
     mov temp_lm+3, x+3
 
 read_opamp:
 	anl ADCCON0, #0xf0          ; *** OPAMP ***
-    orl ADCCON0, #OPAMP_PORT	; 
+    orl ADCCON0, #0x07	; 
 	lcall Avg_ADC
 	mov x+0, R0 			    ; load opamp reading to x
 	mov x+1, R1
 	mov x+2, #0 			
 	mov x+3, #0
-    Load_y(2600)                ; load const vled ref (2070 mV) into y      
+    Load_y(503)                ; load const vled ref (2070 mV) into y      
     lcall mul32
-    mov y+0, VLED_ADC+0 	    ; import led adc reading into y
-	mov y+1, VLED_ADC+1      	   
-	mov y+2, #0 			
-	mov y+3, #0
-    lcall div32                 ; x value now stores OPAMP V in mV
-	Load_y(1000)				
-	lcall mul32					; turn mV to uV
-	Load_y(V2C_DIVISOR)
-	lcall div32					; deg C reading now in x	
-	Load_y(1000)
-	lcall mul32					; conv to mV again to add to lm335 data
+	Load_y(4095)
+    lcall div32                 
+	Load_y(1000000)				
+	lcall mul32					
+	Load_y(213)
+	lcall div32
+	Load_y(41)
+	lcall div32 
+	Load_y(2200)
+	lcall add32					
 
 add_lm335_to_opamp:
     mov y+0, temp_lm+0       	; load lm335 temp to y
@@ -558,22 +521,20 @@ export_to_main:					; exports temp reading to rest of code
     mov x+1, temp_mc+1
     mov x+2, temp_mc+2
     mov x+3, temp_mc+3
-    Load_y(1000)
-    lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)
 
 ;lcall TEMP_READ
 
-Export:							; Data export to python
-	mov R2, #250 				; Wait 500 ms between conversions
-	lcall waitms
-	mov R2, #250
-	lcall waitms				; Sends binary contents of 
-
-    lcall SendBin				; temp_mc and data_out to python
-
-	; /* FSM1 STATE CHANGE CONTROLS */
-	ljmp FSM1
+;Export:							; Data export to python
+;	mov R2, #250 				; Wait 500 ms between conversions
+;	lcall waitms
+;	mov R2, #250
+;	lcall waitms				; Sends binary contents of 
+;
+;    lcall SendBin				; temp_mc and data_out to python
+;
+;	; /* FSM1 STATE CHANGE CONTROLS */
+;	ljmp FSM1
 
 ; REQUIREMENTS
 ; Start/Stop button, to do this, make routine which displays "stopped" for a little bit
