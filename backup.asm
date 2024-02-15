@@ -23,9 +23,9 @@ TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
-GAIN				EQU 25
+GAIN				EQU 213
 ;V2C_DIVISOR			EQU (GAIN*41)
-V2C_DIVISOR			EQU 1051
+V2C_DIVISOR			EQU 8733
 
 ; /*** PORT DEFINITIONS ***/
 LCD_RS 			equ P1.3
@@ -37,7 +37,7 @@ LCD_D7 			equ P0.3
 PWM_OUT 		equ P1.0
 START_BUTTON 	equ P0.4
 ; Analog Input Port Numbering
-LED_PORT 		equ 0x00			; AIN port numbers
+;LED_PORT 		equ 0x00			; AIN port numbers
 LM335_PORT 		equ 0x05
 OPAMP_PORT 		equ 0x07
 AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
@@ -61,7 +61,7 @@ y:   			ds 4
 data_out:   	ds 4		; for python
 bcd: 			ds 5		; for display
 
-VLED_ADC: 		ds 2		; for temperature 
+;VLED_ADC: 		ds 2		; for temperature 
 dtemp:  		ds 2
 tempc: 			ds 1
 temp_mc:		ds 4
@@ -172,7 +172,7 @@ InitAll:
 	mov TH2, #high(TIMER2_RELOAD)
 	mov TL2, #low(TIMER2_RELOAD)
 	; Set the reload value
-	mov T2MOD, #0b1010_0000 ; Enable timer 2 autoreload, and clock divider is 16
+	mov T2MOD, #0b10100000 ; Enable timer 2 autoreload, and clock divider is 16
 	mov RCMP2H, #high(TIMER2_RELOAD)
 	mov RCMP2L, #low(TIMER2_RELOAD)
 	; Init the free running 10 ms counter to zero
