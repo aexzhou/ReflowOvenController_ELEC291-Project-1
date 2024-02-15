@@ -8,6 +8,8 @@ import matplotlib.animation as animation
 import sys
 import math
 import threading
+from flask import Flask, render_template, jsonify
+import os
 
 # Initialize serial connection
 ser = serial.Serial( 
@@ -45,6 +47,12 @@ def run(data):
         if t > xsize:  # Scroll to the left.
             ax.set_xlim(t - xsize, t)
         line.set_data(xdata, ydata)
+
+        static_dir = 'static'
+        if not os.path.exists(static_dir):
+            os.makedirs(static_dir)
+        plt.savefig(f'{static_dir}/plot.png')
+
 
 # auto shutdown if plot if closed
 def on_close_figure(event):

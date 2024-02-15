@@ -622,9 +622,9 @@ FSM1_state0:
 	; Wait 50 ms between readings
 	mov R2, #50
 	lcall waitms
-	ljmp LCD_PB
-lcddone:
+	lcall ADC_to_PB
 	ljmp paraminput
+	
 paramindone:
 	; check for push button input, PB0 is start/stop
 	jb PB0, FSM1_state0_done
@@ -923,73 +923,69 @@ Reflow_Temp:
 
 saveit:
 	ljmp save_parameters
-	;ljmp paramindone
 
-LCD_PB:
-; Set variables to 1: 'no push button pressed'
-    setb PB0
-    setb PB1
-    setb PB2
-    setb PB3
-    setb PB4
-    ; The input pin used to check set to '1'
-    setb P1.5
+ADC_to_PB:
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x00 ; Select AIN0
+	
+	clr ADCF
+	setb ADCS   ; ADC start trigger signal
+    jnb ADCF, $ ; Wait for conversion complete
 
-    ; Check if any push button is pressed
-    clr P0.0
-    clr P0.1
-    clr P0.2
-    clr P0.3
-    clr P1.3
+	setb PB4
+	setb PB3
+	setb PB2
+	setb PB1
+	setb PB0
 
-    jb P1.5, LCD_PB_Done
+	; Check PB4
+ADC_to_PB_L4:
+	clr c
+	mov a, ADCRH
+	subb a, #0x90
+	jc ADC_to_PB_L3
+	clr PB4
+	ret
 
-    ;Debounce
-    mov R2, #50
-    lcall waitms
+	; Check PB3
+ADC_to_PB_L3:
+	clr c
+	mov a, ADCRH
+	subb a, #0x70
+	jc ADC_to_PB_L2
+	clr PB3
+	ret
 
-    jb P1.5, LCD_PB_Done
-    ; Set the LCD data pins to logic 1
-    setb P0.0
-    setb P0.1
-    setb P0.2
-    setb P0.3
-    setb P1.3
+	; Check PB2
+ADC_to_PB_L2:
+	clr c
+	mov a, ADCRH
+	subb a, #0x50
+	jc ADC_to_PB_L1
+	clr PB2
+	ret
 
-;               TXD/AIN3/P0.6 -|2    19|- P0.3/PWM5/IC5/AIN6
-;               RXD/AIN2/P0.7 -|3    18|- P0.2/ICPCK/OCDCK/RXD_1/[SCL]
-;                    RST/P2.0 -|4    17|- P0.1/PWM4/IC4/MISO
-;        INT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
-;                         VDD -|9    12|- P1.3/SCL/[STADC]
+	; Check PB1
+ADC_to_PB_L1:
+	clr c
+	mov a, ADCRH
+	subb a, #0x30
+	jc ADC_to_PB_L0
+	clr PB1
+	ret
 
-    ; Check the push buttons one by one
-    clr P1.3
-    mov c, P1.5
-    mov PB4, c
-    setb P1.3
-   
-    clr P0.0
-    mov c, P1.5
-    mov PB3, c
-    setb P0.0
-   
-    clr P0.1
-    mov c, P1.5
-    mov PB2, c
-    setb P0.1
-   
-    clr P0.2
-    mov c, P1.5
-    mov PB1, c
-    setb P0.2
-   
-    clr P0.3
-    mov c, P1.5
-    mov PB0, c
-    setb P0.3
-   
-LCD_PB_Done:
-    ljmp lcddone
+	; Check PB0
+ADC_to_PB_L0:
+	clr c
+	mov a, ADCRH
+	subb a, #0x10
+	jc ADC_to_PB_Done
+	clr PB0
+	ret
+	
+ADC_to_PB_Done:
+	; No pusbutton pressed	
+	ret
 
 save_parameters:
 	CLR EA  ; MUST disable interrupts for this to work!
@@ -1041,6 +1037,7 @@ save_parameters:
 	MOV TA, #55h
 	ORL IAPTRG,#00000001b
 
+	setb EA
 	ljmp paramindone
 
 END

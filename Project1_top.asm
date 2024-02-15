@@ -172,6 +172,12 @@ Left_blank_%M_b:
 endmac
 
 
+putchar:
+    jnb TI, putchar
+    clr TI
+    mov SBUF, a
+    ret
+
 ;binary to display 3 digits on lcd screen
 
 SendToLCD:
@@ -725,14 +731,35 @@ continue:
 	mov y+3, amb_temp+3
 	lcall add32
 	
+	
 	; Convert to BCD and display
 	lcall hex2bcd
 	Set_Cursor(1, 3)
 	lcall Display_formated_BCD_To
-	send_BCD(bcd+3)
-	send_BCD(bcd+2)
-	send_BCD(bcd+1)
-	send_BCD(bcd+0)
+	
+?Send_BCD:	
+	push acc
+; Write most significant digit
+	mov a, bcd+2
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+; write least significant digit
+	mov a, bcd+2
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	mov a, bcd+1
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	mov a, bcd+1
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	pop acc
 
 	; Storing the thermocouple temperature into var temp 
 	Load_y(10000)
@@ -870,32 +897,6 @@ Send_BCD mac
 	lcall ?Send_BCD
 	pop ar0
 endmac
-
-?Send_BCD:	
-	push acc
-; Write most significant digit
-	mov a, bcd+2
-	swap a
-	anl a, #0fh
-	orl a, #30h
-	lcall putchar
-; write least significant digit
-	mov a, bcd+2
-	anl a, #0fh
-	orl a, #30h
-	lcall putchar
-	mov a, bcd+1
-	swap a
-	anl a, #0fh
-	orl a, #30h
-	lcall putchar
-	mov a, bcd+1
-	anl a, #0fh
-	orl a, #30h
-	lcall putchar
-	pop acc
-	ret
-
 
 ;Any additions to be checked
 END
