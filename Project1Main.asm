@@ -386,11 +386,11 @@ Main:
 
 	; Initialize all variables
 	Load_y(0)
-	mov data_out  #0
-	mov dtemp  #0
-	mov temp_mc  #0
-	mov OPAMP_temp  #0
-	mov temp_lm  #0
+	mov data_out,  #0
+	mov dtemp,  #0
+	mov temp_mc,  #0
+	mov OPAMP_temp,  #0
+	mov temp_lm,  #0
 	mov FSM1_state, #0
 	mov seconds, #0
 	mov ReflowTemp, #0
@@ -695,87 +695,6 @@ FSM1_state6:
 
 ;alarm sound 
 ;first dadada
-    clr TR0
-    mov frequency+0,#low(FREQ_D7) 
-    mov frequency+1,#high(FREQ_D7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb half_s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    mov frequency+0,#low(FREQ_Bb7) 
-    mov frequency+1,#high(FREQ_Bb7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb half_s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    mov frequency+0,#low(FREQ_F7) 
-    mov frequency+1,#high(FREQ_F7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    ;second dadada
-    jnb s_flag, $
-    clr TR0
-    mov frequency+0,#low(FREQ_D7) 
-    mov frequency+1,#high(FREQ_D7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb half_s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    mov frequency+0,#low(FREQ_Bb7) 
-    mov frequency+1,#high(FREQ_Bb7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb half_s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    mov frequency+0,#low(FREQ_F7) 
-    mov frequency+1,#high(FREQ_F7)
-    setb TR0 
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr TR0
-    clr s_flag
-    clr half_s_flag
-
-    jnb s_flag, $
-    clr s_flag
-    clr half_s_flag
 
 	jb PB0, FSM1_state6_done
 	mov FSM1_state, #0
