@@ -729,6 +729,10 @@ continue:
 	lcall hex2bcd
 	Set_Cursor(1, 3)
 	lcall Display_formated_BCD_To
+	send_BCD(bcd+3)
+	send_BCD(bcd+2)
+	send_BCD(bcd+1)
+	send_BCD(bcd+0)
 
 	; Storing the thermocouple temperature into var temp 
 	Load_y(10000)
