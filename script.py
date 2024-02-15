@@ -50,7 +50,7 @@ def run(data):
 
         static_dir = 'static'
         if not os.path.exists(static_dir):
-            os.makedirs(static_dir)
+            os.makedir(static_dir)
         plt.savefig(f'{static_dir}/plot.png')
 
 

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Data Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #dataDisplay {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Real-Time Temperature Data</h2>
+    <div id="dataDisplay">Loading data...</div>
+    <img id="plotImage" src="/static/plot.png" alt="Temperature Plot" width="500">
+
+    <script>
+        function fetchData() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('dataDisplay').textContent = `Time: ${data.time}, Temperature: ${data.value}°C`;
+                    // Refresh the plot image to display the latest
+                    const plotImage = document.getElementById('plotImage');
+                    plotImage.src = '/static/plot.png?' + new Date().getTime();
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Fetch data every 5 seconds
+        setInterval(fetchData, 5000);
+
+        // Fetch data immediately on page load
+        fetchData();
+    </script>
+</body>
+</html>
