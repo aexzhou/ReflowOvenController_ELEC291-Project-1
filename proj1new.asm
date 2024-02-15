@@ -1,5 +1,6 @@
 ; 76E003 ADC test program: Reads channel 7 on P1.1, pin 14
 ; This version uses an LED as voltage reference connected to pin 6 (P1.7/AIN0)
+; https://prod.liveshare.vsengsaas.visualstudio.com/join?E3458FD8C3C82759F31849354F5185142076
 
 $NOLIST
 $MODN76E003
