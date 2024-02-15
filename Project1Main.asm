@@ -18,13 +18,14 @@ $LIST
 ;
 
 CLK                 EQU 16600000 						; Microcontroller system frequency in Hz
-BAUD                EQU 115200 							; Baud rate of UART in bps
+BAUD                EQU 115200 	
+TIMER0_RATE         EQU 4096     ; 2048Hz squarewave (peak amplitude of CEM-1203 speaker)
+TIMER0_RELOAD       EQU ((65536-(CLK/TIMER0_RATE)))						; Baud rate of UART in bps
 TIMER1_RELOAD       EQU (0x100-(CLK/(16*BAUD)))
 TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
 GAIN				EQU 25
-;V2C_DIVISOR			EQU (GAIN*41)
 V2C_DIVISOR			EQU 1051
 
 ; /*** PORT DEFINITIONS ***/
@@ -41,17 +42,25 @@ LED_PORT 		equ 0x00			; AIN port numbers
 LM335_PORT 		equ 0x05
 OPAMP_PORT 		equ 0x07
 AINCONFIG		equ 0b10100001		; bits 1 = toggled analog in
+SOUND_OUT       equ P1.6
+
+FREQ_D7  EQU 62002
+FREQ_Bb7 EQU 63310
+FREQ_F7  EQU 62564
 
 ; /*** VECTORS ***/
 org 0000H
    	ljmp Main
 
+org 000BH					; Timer/Counter 0 overflow interrupt vector
+	ljmp Timer0_ISR
+
 org 002BH					; timer 2 enable
 	ljmp Timer2_ISR
 
-org 3000H					; lookup table stored at APROM address starting 0x4000
+;org 3000H					; lookup table stored at APROM address starting 0x4000
 ; 	$NOLIST
- 	$include(thermodata.inc)
+ 	;$include(thermodata.inc)
 ; 	$List
 
 ; /*** DIRECT ACCESS VARIABLES @RAM 0x30 -> 0x7F ***/
@@ -85,12 +94,14 @@ SoakTemp:		ds 1
 
 Val_test:		ds 4
 Val_temp:		ds 4
+frequency:      ds 2
 
 ; /*** SINGLE BIT VARIABLES @RAM 0x20 -> 0x2F ***/
 BSEG 
 mf: 			dbit 1
 seconds_flag: 	dbit 1
 s_flag: 		dbit 1
+half_s_flag:    dbit 1
 PB0: 			dbit 1
 PB1: 			dbit 1
 PB2: 			dbit 1
@@ -171,20 +182,16 @@ InitAll:
 	orl ADCCON0, #0x07 			; Select channel 7
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #0b1000000	; P1.1 is analog input
+	orl AINDIDS, #0b10000001	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
 
-
-;----------------------------------------------------------------;
-; 					TIMER 2 INITIALIZATION
-;----------------------------------------------------------------;
-
+	; /* TIMER 2 INIT * /
 	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
 	mov TH2, #high(TIMER2_RELOAD)
 	mov TL2, #low(TIMER2_RELOAD)
 	; Set the reload value
-	mov T2MOD, #0b1010_0000 ; Enable timer 2 autoreload, and clock divider is 16
+	mov T2MOD, #0b10100000 ; Enable timer 2 autoreload, and clock divider is 16
 	mov RCMP2H, #high(TIMER2_RELOAD)
 	mov RCMP2L, #low(TIMER2_RELOAD)
 	; Init the free running 10 ms counter to zero
@@ -194,49 +201,87 @@ InitAll:
     setb TR2  ; Enable timer 2
 
 	setb EA ; Enable global interrupts
-    ret
 
+	orl CKCON, #0b00001000 ; Input for timer 0 is sysclk/1
+	mov a, TMOD
+	anl a, #0xf0 ; 11110000 Clear the bits for timer 0
+	orl a, #0x01 ; 00000001 Configure timer 0 as 16-timer
+	mov TMOD, a
+	mov TH0, #high(65536-(CLK/TIMER0_RATE))
+	mov TL0, #low(65536-(CLK/TIMER0_RATE))
+	; Enable the timer and interrupts
+    setb ET0  ; Enable timer 0 interrupt
+    setb TR0  ; Start timer 0
+	ret
+
+
+;---------------------------------;
+; ISR for timer 0.  Set to execute;
+; every 1/4096Hz to generate a    ;
+; 2048 Hz wave at pin SOUND_OUT   ;
+;---------------------------------;
+Timer0_ISR:
+	
+	clr TR0	; Stop timer 0 
+	mov TH0, frequency+0	; High byte of timer 1 is set to the low byte of frequency   
+	mov TH1, frequency+1	; Low  byte of timer 1 is set to the high byte of frequency
+	setb TR0
+	cpl SOUND_OUT ; Connect speaker the pin assigned to 'SOUND_OUT'!
+	reti
 
 ;---------------------------------;
 ; ISR for Timer 2                 ;
 ;---------------------------------;
 Timer2_ISR:
 	clr TF2  ; Timer 2 doesn't clear TF2 automatically. Do it in the ISR.  It is bit addressable.
-	push psw
-	push acc
+	push psw	; Store this for when our interrupt is finished since we modify a
+	push acc	; Same as push psw
 	
-	inc pwm_counter
-	clr c
-	mov a, pwm
-	subb a, pwm_counter ; If pwm_counter <= pwm then c=1
-	cpl c
+	; // Toggles PWN (cpl c) based on value in pwm
+	inc pwm_counter	; Counter for 10 ms
+	clr c	; Clear carry bit for comparison
+	mov a, pwm	; Put the pulse width in the accumulator 
+	subb a, pwm_counter ; If pwm_counter <= pwm then c=1	; We need to increment pwmcounter if it's smaller than pwm 
+	cpl c	
 	mov PWM_OUT, c
-	
-	mov a, pwm_counter
-	cjne a, #100, Timer2_ISR_done
-	; executes every second
+
+	; // Time Checking (for system, not pwm)
+	inc count10ms	; This should be the same as pwm_counter 
+	mov a, count10ms	
+	cjne a, #50, $+2						; $+2 jumps to the instruction 2 lines (bytes) down
+	setb half_s_flag						; to indicate half seconds passed, must clear after use
+    cjne a, #100, Timer2_ISR_Every_Second	; not one second or one half second if this fails 
+	; //			If we haven't jumped then we have to keep pwm_counter and count10ms the same
+	ljmp Timer2_ISR_Continued	; We can safely assume since both tests failed we now need to do our abort checks 
+; *** code below here executes every 1 second ***
+Timer2_ISR_Every_Second:					
+	mov count10ms, #0						; reset 10 ms counters
 	mov pwm_counter, #0
-	inc seconds ; It is super easy to keep a seconds count here
-	setb s_flag
+	setb half_s_flag						; 1 = 0.5*2
+	setb s_flag								; to tell system 1 second has passed
+	inc seconds
+
+;  *** continues with the ISR, code below this lable executes every interupt (10ms) *** 
+Timer2_ISR_Continued:	
 
 	mov a, FSM1_state
-	cjne a, #0, Abort_Check0			; For abort check, the abort should not trigger if you are in state 0
+	cjne a, #0, Abort_Check0				; For abort check, the abort should not trigger if you are in state 0
 	ljmp Timer2_ISR_done
-
+	
 Abort_Check0:
 ; Check if temperature is above 240. If so, abort
 	clr c
 	mov a, tempc
-	subb a, #240						; if a is greater than 240, there will be no carry bit so we need to abort
-	jc Abort_Check1						; if temperature is below 240, continue to next check
+	subb a, #240						; if a is below 240, we have a carry bit so continue to next check
+	jc Abort_Check1						; jump if carry to the next check
 	; abort routine
-	mov FSM1_state, #10
+	mov FSM1_state, #10 				; Since we didn't jump to the next abort_check we need to abort here
     ljmp Timer2_ISR_done                ; if temp is above 240, abort condition has already been triggered, skip ahead to done
 
 Abort_Check1:
 ; Check if temperature is below 50. If so, check for how long
 	mov a, tempc
-	clr c
+	clr c						; a < 50 = carry, a > 50 = no carry
 	subb a, #50							; if tempc (stored in a) is less than 50, there will be a carry bit
 	jnc Timer2_ISR_abort_done			; skip the abort checks if temperature is above 50
 
@@ -245,10 +290,10 @@ Abort_Check2:
 	inc abort_time
 	mov a, abort_time
 	clr c
-	subb a, #60							; if abort_time is less than 60, there will be a carry bit
-	jc Timer2_ISR_done					; if there is a carry 
+	subb a, #15							; if abort_time is less than 60, there will be a carry bit, no carry means we abort 
+	jc Timer2_ISR_done					; if there is a carry go to abort
 	mov FSM1_state, #10
-	ljmp Timer2_ISR_done
+	ljmp Timer2_ISR_done	; no carry, so we need to keep checking temp which we can do by jumping to FSM_sys
 
 Timer2_ISR_abort_done:
 	mov abort_time, #0
@@ -298,6 +343,10 @@ SendBin:
 	mov a, temp_mc+3
 	lcall putchar
 
+	clr A
+	mov a, FSM1_state
+	lcall putchar
+
 	clr A					; Sends data_out
 	mov a, data_out+0
 	lcall putchar
@@ -334,54 +383,6 @@ waitms:
 	djnz R2, waitms
 	ret
 
-Display_formated_BCD: ;4 dig 
-	Set_Cursor(1, 1)
-    Send_Constant_String(#temp_message)
-	Set_Cursor(2, 7)
-	Display_BCD(bcd+2)
-	Set_Cursor(2, 9)
-	Display_BCD(bcd+1)
-	Set_Cursor(2, 10)
-	Display_BCD(bcd+1)
-	
-	Set_Cursor(2, 12)
-	Display_BCD(bcd+0)
-	Set_Cursor(2, 10)
-	Display_char(#'.')
-	Set_Cursor(2, 7)
-	Display_char(#0x20)
-	Set_Cursor(2, 15)
-	Display_char(#0xDF)
-	Set_Cursor(2, 16)
-	Display_char(#'C')
-	ret
-
-Display_temp_BCD: ;4 dig 
-	push acc
-	mov a, bcd+1
-	cjne a, #0, Display_temp_BCD2
-	ljmp Display_temp_BCD3
-Display_temp_BCD2:
-	Set_Cursor(2, 1)
-    Send_Constant_String(#temp_message)
-	Set_Cursor(2, 11)
-	Display_BCD(bcd+1)
-	Set_Cursor(2, 11)
-	Display_char(#0x20)
-	Set_Cursor(2, 13)
-	Display_BCD(bcd+0)
-Display_temp_BCD3:
-	Set_Cursor(2, 12)
-	Display_char(#0x20)
-Display_temp_BCD_done:
-	Set_Cursor(2, 15)
-	Display_char(#0xDF)		; deg symbol
-	Set_Cursor(2, 16)
-	Display_char(#'C')
-	pop acc
-	ret
-
-
 ; /* READ ADC */
 Read_ADC:
 	clr ADCF
@@ -410,6 +411,7 @@ Main:
     lcall LCD_4BIT
 
 	; Initialize all variables
+    clr half_s_flag 
 	setb seconds_flag
 	mov FSM1_state, #0
 	mov seconds, #0
@@ -418,40 +420,47 @@ Main:
 	mov SoakTime, #0
 	mov abort_time, #0
 	mov SoakTemp, #0
+	mov data_out, #0 
+	mov tempc, #0
+	mov pwm, #0
 
-	; initial messages in LCD
+	;initial messages in LCD
 	Set_Cursor(1, 1)
     Send_Constant_String(#soak_text)
 	Set_Cursor(2, 1)
     Send_Constant_String(#reflow_text)
 
     Set_Cursor(1,8)
-    mov x, SoakTemp
+    mov x+0, SoakTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
     Set_Cursor(1,13)
-	mov x, SoakTime
+	mov x+0, SoakTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
     Set_Cursor(2,8)
-	mov x, ReflowTime
+	mov x+0, ReflowTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
 	Display_BCD(bcd)
 
-    mov x, ReflowTemp
+    mov x+0, ReflowTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     Set_Cursor(2,13)
     lcall hex2bcd
 	Display_BCD(bcd)
-
-    ; initial messages in LCD
-	; Set_Cursor(1, 1)
-    ; Send_Constant_String(#test_message)
-	; Set_Cursor(2, 1)
-    ; Send_Constant_String(#value_message)
-
-	;mov data_out, #0b00000001
 
 ;Forever: ;avaliable: r2, r3
 FSM_sys:
@@ -466,8 +475,9 @@ TEMP_READ:
 	ljmp read_led
 
 Avg_ADC:						; function for ADC noise reduction
+	;push AR5
     Load_X(0)
-    mov R5, #255
+    mov R5, #100
 sum_loop_avg:
     lcall Read_ADC
     mov y+3, #0
@@ -476,8 +486,9 @@ sum_loop_avg:
     mov y+0, R0
     lcall add32
     djnz R5, sum_loop_avg
-    Load_y(255)
+    Load_y(100)
     lcall div32
+	;pop AR5
     ret
 
 read_led:
@@ -549,18 +560,16 @@ export_to_main:					; exports temp reading to rest of code
     mov x+3, temp_mc+3
     Load_y(1000)
     lcall div32
-    mov tempc, x+0              ; Both tempc and x now stores temp (C)		
-;lcall TEMP_READ
+    mov tempc, x+0              ; Both tempc and x now stores temp (C)
 
-; export_to_bcd:					; sends temp reading in C to bcd;
-; 	lcall hex2bcd
-; 	lcall Display_temp_BCD
+;lcall TEMP_READ
 
 Export:							; Data export to python
 	mov R2, #250 				; Wait 500 ms between conversions
 	lcall waitms
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
+
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */
@@ -572,36 +581,58 @@ Export:							; Data export to python
 ; Running time display, implement in main
 ; 
 
-
 FSM1:
 	mov a, FSM1_state
-	;Set_Cursor(1,1)
-	;Send_Constant_String(#state_message)
-	;Set_Cursor(2,12)
-	; mov Val_test+0, tempc          ; store result in temp_mc (for python)
-    ; mov Val_test+1, #0	
-    ; mov Val_test+2, #0
-    ; mov Val_test+3, #0
-	;lcall Display_Val
+	cjne a, #0, contd	; When not in state 0 we need to get tempc and display
+	ljmp FSM1_state0
+contd:
+	mov x+0, tempc
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
+    lcall hex2bcd
+	Set_Cursor(1,1)
+	Send_Constant_String(#value_message)
+	Set_Cursor(2,1)
+	Send_Constant_String(#temp_message)
+	Set_Cursor(2,12)
+    Display_BCD(bcd+1)
+    Set_Cursor(2,12)
+    Display_char(#0x20)
+    Set_Cursor(2,14)
+	Display_BCD(bcd+0)
+
+    mov x+0, temp_lm+0       	; load lm335 temp to y
+    mov x+1, temp_lm+1
+    mov x+2, temp_lm+2
+    mov x+3, temp_lm+3
+	Load_y(1000)
+	lcall div32
+	lcall hex2bcd
+    Set_Cursor(1,12)
+	Display_BCD(bcd+0)
+
 
 FSM1_state0:
 	cjne a, #0, FSM1_state1 ; if FSM1_state (currently stored in a) is not equal to zero (ie. state zero), go to state 1
 	mov pwm, #0
-	;Set_Cursor(1,15)
-	;Display_BCD(#0x00)
-
+	Set_Cursor(1,16)
+	Display_BCD(#0x00)
+	clr seconds_flag
 	; Wait 50 ms between readings
-	;mov R2, #50
-	;lcall waitms
+	mov R2, #50
+	lcall waitms
+	ljmp LCD_PB
+lcddone:
 	ljmp paraminput
-
+paramindone:
 	; check for push button input, PB0 is start/stop
 	jb PB0, FSM1_state0_done
-	jnb PB0, $ ; Wait for key release
 	mov FSM1_state, #1
 
 FSM1_state0_done:
 	ljmp FSM_sys
+	;ljmp FSM1
 
 FSM1_state1:
 	cjne a, #1, FSM1_state2
@@ -677,18 +708,122 @@ FSM1_state4_done:
 	ljmp FSM_sys
 
 FSM1_state5:
-	cjne a, #5, FSM1_abort_state		; if the state is not in 0-5, then it must be 10 (aka the abort state)
+	cjne a, #5, FSM1_state6		; if the state is not in 0-5, then it must be 10 (aka the abort state)
 	mov pwm, #0
 	Set_Cursor(1,15)
-	Display_BCD(#0x04)
+	Display_BCD(#0x05)
 	mov a, #60
 	clr c
 	subb a, tempc
 	jc FSM1_state5_done
-	mov FSM1_state, #0
+	mov FSM1_state, #6
 
 FSM1_state5_done:
 	ljmp FSM_sys
+
+FSM1_abort_state_im:
+	mov FSM1_state, #10
+    ljmp FSM1_abort_state
+
+;;;
+
+FSM1_state6:
+	cjne a, #6, FSM1_abort_state_im
+	Set_Cursor(1,15)
+	Display_BCD(#0x06)
+
+;alarm sound 
+;first dadada
+    clr TR0
+    mov frequency+0,#low(FREQ_D7) 
+    mov frequency+1,#high(FREQ_D7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb half_s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    mov frequency+0,#low(FREQ_Bb7) 
+    mov frequency+1,#high(FREQ_Bb7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb half_s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    mov frequency+0,#low(FREQ_F7) 
+    mov frequency+1,#high(FREQ_F7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    ;second dadada
+    jnb s_flag, $
+    clr TR0
+    mov frequency+0,#low(FREQ_D7) 
+    mov frequency+1,#high(FREQ_D7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb half_s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    mov frequency+0,#low(FREQ_Bb7) 
+    mov frequency+1,#high(FREQ_Bb7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb half_s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    mov frequency+0,#low(FREQ_F7) 
+    mov frequency+1,#high(FREQ_F7)
+    setb TR0 
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr TR0
+    clr s_flag
+    clr half_s_flag
+
+    jnb s_flag, $
+    clr s_flag
+    clr half_s_flag
+
+	jb PB0, FSM1_state6_done
+	mov FSM1_state, #0
+
+FSM1_state6_done:
+	ljmp FSM_sys
+
+
+	;;;;;
 
 FSM1_abort_state:						; When the abort state is triggered, turn everything off and remain in this state utill you reset
 	cjne a, #10, FSM1_error				; if state is somehow neither 0-5 or 10, go to state error
@@ -716,15 +851,18 @@ Soak_Temp:
 	mov a, SoakTemp
 	add a, #0x01
 	mov SoakTemp, a
-	mov x+0, SoakTemp+0
+	mov x+0, SoakTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
     Set_Cursor(1,6)
     Display_BCD(bcd+1)
     Set_Cursor(1,6)
     Display_char(#0x20)
     Set_Cursor(1,8)
 	Display_BCD(bcd+0)
+	ljmp saveit
 
 
 Soak_Time:
@@ -733,15 +871,18 @@ Soak_Time:
 	mov a, SoakTime
 	add a, #0x01
 	mov SoakTime, a
-	mov x+0, SoakTime+0
+	mov x+0, SoakTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(1,11)
     Display_BCD(bcd+1)
     Set_Cursor(1,11)
     Display_char(#0x20)
     Set_Cursor(1,13)
 	Display_BCD(bcd+0)
+	ljmp saveit
 
 Reflow_Time:
 	; If PB3 is pressed, increase reflow time
@@ -749,25 +890,30 @@ Reflow_Time:
 	mov a, ReflowTime
 	add a, #0x01
 	mov ReflowTime, a
-	mov x+0, ReflowTime+0
+	mov x+0, ReflowTime
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(2,6)
     Display_BCD(bcd+1)
     Set_Cursor(2,6)
     Display_char(#0x20)
     Set_Cursor(2,8)
 	Display_BCD(bcd+0)
+	ljmp saveit
 
 Reflow_Temp:
 	; If PB4 is pressed, increase reflow temp
-	jb PB4, paramdone
+	jb PB4, saveit
 	mov a, ReflowTemp
 	add a, #0x01
 	mov ReflowTemp, a
-	mov x+0, ReflowTemp+0
+	mov x+0, ReflowTemp
+	mov x+1, #0
+	mov x+2, #0
+	mov x+3, #0
     lcall hex2bcd
-    mov a, bcd+1
 	Set_Cursor(2,11)
     Display_BCD(bcd+1)
     Set_Cursor(2,11)
@@ -775,9 +921,9 @@ Reflow_Temp:
     Set_Cursor(2,13)
 	Display_BCD(bcd+0)
 
-paramdone:
+saveit:
 	ljmp save_parameters
-	ret
+	;ljmp paramindone
 
 LCD_PB:
 ; Set variables to 1: 'no push button pressed'
@@ -843,7 +989,7 @@ LCD_PB:
     setb P0.3
    
 LCD_PB_Done:
-    ret
+    ljmp lcddone
 
 save_parameters:
 	CLR EA  ; MUST disable interrupts for this to work!
@@ -895,7 +1041,7 @@ save_parameters:
 	MOV TA, #55h
 	ORL IAPTRG,#00000001b
 
-	ret
+	ljmp paramindone
 
 END
 

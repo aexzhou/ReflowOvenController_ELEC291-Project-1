@@ -47,15 +47,30 @@ lowval:
     pop AR0
     pop acc
     ret
-    
-    
 
 
+ReadNV:
+	mov dptr, #0x3f80
+	clr a
+	movc a, @a+dptr
+	mov SoakTime, a
+	
+	inc dptr
+	clr a
+	movc a, @a+dptr
+	mov SoakTemp, a
+	
+	inc dptr
+	clr a
+	movc a, @a+dptr
+	mov ReflowTime, a
+	
+	inc dptr
+	clr a
+	movc a, @a+dptr
+	mov ReflowTemp, a
 
-
-
-
-
+	ret
 
 
 
