@@ -102,7 +102,7 @@ abort_message: 	  db 'ABORTABORTABORT ', 0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
-$include(adc_flash.inc)
+;$include(adc_flash.inc)
 $include(math32.inc)
 $include(troubleshooter.inc) 
 $LIST
