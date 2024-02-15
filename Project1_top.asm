@@ -864,6 +864,37 @@ FSM1_state5_done:
 	lcall Save_Variables ; Save variables in flash memory
 	ljmp Forever
 	
+Send_BCD mac
+	push ar0
+	mov r0, %0
+	lcall ?Send_BCD
+	pop ar0
+endmac
+
+?Send_BCD:	
+	push acc
+; Write most significant digit
+	mov a, bcd+2
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+; write least significant digit
+	mov a, bcd+2
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	mov a, bcd+1
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	mov a, bcd+1
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	pop acc
+	ret
 
 
 ;Any additions to be checked
