@@ -420,6 +420,9 @@ Main:
 	mov SoakTime, #0
 	mov abort_time, #0
 	mov SoakTemp, #0
+	mov data_out, #0 
+	mov tempc, #0
+	mov pwm, #0
 
 	;initial messages in LCD
 	Set_Cursor(1, 1)
@@ -559,7 +562,6 @@ export_to_main:					; exports temp reading to rest of code
     lcall div32
     mov tempc, x+0              ; Both tempc and x now stores temp (C)
 
-	Load_X(0)
 ;lcall TEMP_READ
 
 Export:							; Data export to python
@@ -581,7 +583,7 @@ Export:							; Data export to python
 
 FSM1:
 	mov a, FSM1_state
-	cjne a, #0, contd
+	cjne a, #0, contd	; When not in state 0 we need to get tempc and display
 	ljmp FSM1_state0
 contd:
 	mov x+0, tempc
@@ -616,7 +618,7 @@ FSM1_state0:
 	mov pwm, #0
 	Set_Cursor(1,16)
 	Display_BCD(#0x00)
-
+	clr seconds_flag
 	; Wait 50 ms between readings
 	mov R2, #50
 	lcall waitms
