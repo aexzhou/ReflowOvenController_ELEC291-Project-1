@@ -117,6 +117,3 @@ serial_thread.start()
 # shutdown_event.set()
 # serial_thread.join()
 
-print("PROGRAM EXIT")
-
-

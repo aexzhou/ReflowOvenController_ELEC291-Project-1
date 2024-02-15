@@ -26,7 +26,6 @@ TIMER0_RELOAD_1MS   EQU (0x10000-(CLK/1000))
 TIMER2_RATE 		EQU 100 							; 1/100 = 10ms
 TIMER2_RELOAD   	EQU (65536-(CLK/(16*TIMER2_RATE)))
 GAIN				EQU 25
-;V2C_DIVISOR			EQU (GAIN*41)
 V2C_DIVISOR			EQU 1051
 
 ; /*** PORT DEFINITIONS ***/
@@ -52,6 +51,9 @@ FREQ_F7  EQU 62564
 ; /*** VECTORS ***/
 org 0000H
    	ljmp Main
+
+org 000BH					; Timer/Counter 0 overflow interrupt vector
+	ljmp Timer0_ISR
 
 org 002BH					; timer 2 enable
 	ljmp Timer2_ISR
@@ -184,12 +186,7 @@ InitAll:
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
 
-	
-;----------------------------------------------------------------;
-; 					TIMER 2 INITIALIZATION
-;----------------------------------------------------------------;
-
-
+	; /* TIMER 2 INIT * /
 	mov T2CON, #0 ; Stop timer/counter.  Autoreload mode.
 	mov TH2, #high(TIMER2_RELOAD)
 	mov TL2, #low(TIMER2_RELOAD)
@@ -206,6 +203,7 @@ InitAll:
 	setb EA ; Enable global interrupts
 
 	ret
+
 
 Timer0_Init:
 	orl CKCON, #0b00001000 ; Input for timer 0 is sysclk/1
@@ -226,15 +224,11 @@ Timer0_Init:
 ; 2048 Hz wave at pin SOUND_OUT   ;
 ;---------------------------------;
 Timer0_ISR:
-	;clr TF0  ; According to the data sheet this is done for us already.
-	; Timer 0 doesn't have 16-bit auto-reload, so
+	
 	clr TR0
-		
 	mov TH0, frequency+0
 	mov TH1, frequency+1
-	
 	setb TR0
-	
 	cpl SOUND_OUT ; Connect speaker the pin assigned to 'SOUND_OUT'!
 	reti
 
@@ -246,28 +240,37 @@ Timer2_ISR:
 	push psw
 	push acc
 	
+	; // Toggles PWN (cpl c) based on value in pwm
 	inc pwm_counter
 	clr c
 	mov a, pwm
 	subb a, pwm_counter ; If pwm_counter <= pwm then c=1
 	cpl c
 	mov PWM_OUT, c
-	
-    cjne a, #50, inc_seconds
-	;executes every half-second
-    setb half_s_flag 
-    
-inc_seconds:
-	mov a, pwm_counter
-	cjne a, #100, Timer2_ISR_done
-	; executes every second
+
+	; // Time Checking (for system, not pwm)
+	inc count10ms
+	mov a, count10ms
+	cjne a, #50, $+2						; $+2 jumps to the instruction 2 lines (bytes) down
+	setb half_s_flag						; to indicate half seconds passed, must clear after use
+    cjne a, #100, Timer2_ISR_Continued
+	; //
+
+; *** code below here executes every 1 second ***
+Timer2_ISR_Every_Second:
+	mov count10ms, #0						; reset 10 ms counters
 	mov pwm_counter, #0
-	inc seconds ; It is super easy to keep a seconds count here
-	setb s_flag
+	setb half_s_flag						; 1 = 0.5*2
+	setb s_flag								; to tell system 1 second has passed
+	inc seconds
+
+;  *** continues with the ISR, code below this lable executes every interupt (10ms) *** 
+Timer2_ISR_Continued:	
 
 	mov a, FSM1_state
-	cjne a, #0, Abort_Check0			; For abort check, the abort should not trigger if you are in state 0
+	cjne a, #0, Abort_Check0				; For abort check, the abort should not trigger if you are in state 0
 	ljmp Timer2_ISR_done
+	
 Abort_Check0:
 ; Check if temperature is above 240. If so, abort
 	clr c
@@ -569,11 +572,6 @@ Export:							; Data export to python
 	mov R2, #250
 	lcall waitms				; Sends binary contents of 
 
-mov data_out+0, SoakTime
-mov data_out+1, SoakTemp
-mov data_out+2, ReflowTime	
-mov data_out+3, ReflowTemp
-
     lcall SendBin				; temp_mc and data_out to python
 
 	; /* FSM1 STATE CHANGE CONTROLS */
@@ -729,6 +727,8 @@ FSM1_abort_state_im:
 	mov FSM1_state, #10
     ljmp FSM1_abort_state
 
+;;;
+
 FSM1_state6:
 	cjne a, #6, FSM1_abort_state_im
 	Set_Cursor(1,15)
@@ -823,6 +823,9 @@ FSM1_state6:
 
 FSM1_state6_done:
 	ljmp FSM_sys
+
+
+	;;;;;
 
 FSM1_abort_state:						; When the abort state is triggered, turn everything off and remain in this state utill you reset
 	cjne a, #10, FSM1_error				; if state is somehow neither 0-5 or 10, go to state error
