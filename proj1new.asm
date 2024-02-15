@@ -140,7 +140,6 @@ Set_Cursor(2, 6)
 Display_char(#0xDF)
 Set_Cursor(2, 10)
 Display_BCD(bcd+2)
-Send_BCD(bcd+2)
 Display_char(#'.')
 Display_BCD(bcd+1)
 Display_BCD(bcd+0)
@@ -184,8 +183,6 @@ SendString:
 SendStringDone:
     ret
    
-Hello_World:
-    DB '\r', '\n', 0
 ;NumTest:
 ;DB '2.9783', '\r', '\n', 0
 
@@ -240,7 +237,6 @@ lcall sub32
 ; Convert to BCD and display
 lcall hex2bcd
 lcall Display_formated_BCD
-lcall send_to_BCD
 
 ; Wait 500 ms between conversions
 mov R2, #250
@@ -248,17 +244,9 @@ lcall waitms
 mov R2, #250
 lcall waitms
 
-mov DPTR, #Hello_World
-    lcall SendString
-
 
 
 ljmp Forever
 
-send_to_BCD:
-Send_BCD(bcd)
-Send_BCD(bcd+1)
-Send_BCD(bcd+2)
-ret
 
 END
