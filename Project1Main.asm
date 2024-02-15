@@ -191,7 +191,7 @@ InitAll:
 	mov TH2, #high(TIMER2_RELOAD)
 	mov TL2, #low(TIMER2_RELOAD)
 	; Set the reload value
-	mov T2MOD, #0b1010_0000 ; Enable timer 2 autoreload, and clock divider is 16
+	mov T2MOD, #0b10100000 ; Enable timer 2 autoreload, and clock divider is 16
 	mov RCMP2H, #high(TIMER2_RELOAD)
 	mov RCMP2L, #low(TIMER2_RELOAD)
 	; Init the free running 10 ms counter to zero
