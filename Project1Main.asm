@@ -182,7 +182,7 @@ InitAll:
 	orl ADCCON0, #0x07 			; Select channel 7
 	; AINDIDS select if some pins are analog inputs or digital I/O:
 	mov AINDIDS, #0x00 			; Disable all analog inputs
-	orl AINDIDS, #0b1000000	; P1.1 is analog input
+	orl AINDIDS, #0b10000001	; P1.1 is analog input
 	orl ADCCON1, #0x01 			; Enable ADC
 	mov temp_offset, #0x00
 
@@ -477,7 +477,7 @@ TEMP_READ:
 Avg_ADC:						; function for ADC noise reduction
 	;push AR5
     Load_X(0)
-    mov R5, #255
+    mov R5, #100
 sum_loop_avg:
     lcall Read_ADC
     mov y+3, #0
@@ -486,7 +486,7 @@ sum_loop_avg:
     mov y+0, R0
     lcall add32
     djnz R5, sum_loop_avg
-    Load_y(255)
+    Load_y(100)
     lcall div32
 	;pop AR5
     ret
