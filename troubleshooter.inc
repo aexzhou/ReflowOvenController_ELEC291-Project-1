@@ -1,4 +1,5 @@
 $NOLIST
+CSEG
 ;----------------------------------------------------
 ; Reads whatever values are in the 4 bytes of Val_test 
 ; and displays it on bcd. Good for troubleshooting
@@ -138,4 +139,36 @@ Display_x2:
     Display_BCD(Val_temp+0)
 	ret
 
+
+
+
+Display_Buttons:
+	Set_Cursor(1,4)
+	Display_Bit(upf)
+	Set_Cursor(1,3)
+	Display_Bit(dnf)
+	Set_Cursor(1,2)
+	Display_Bit(select_flag)
+	Set_Cursor(1,1)
+	Display_Bit(conf_flag)
+
+	Set_Cursor(2,4)
+	Display_Bit(PB3)
+	Set_Cursor(2,3)
+	Display_Bit(PB2)
+	Set_Cursor(2,2)
+	Display_Bit(PB1)
+	Set_Cursor(2,1)
+	Display_Bit(PB0)
+
+	ret
+
 $LIST
+
+
+
+
+
+
+
+

@@ -17,6 +17,7 @@ $LIST
 ;                               -------
 ;
 
+
 CLK           EQU 16600000 ; Microcontroller system oscillator frequency in Hz
 BAUD          EQU 115200 ; Baud rate of UART in bps
 TIMER1_RELOAD EQU (0x100-(CLK/(16*BAUD)))

@@ -7,37 +7,37 @@ cseg
 ; Wait 40 microseconds            ;
 ;---------------------------------;
 Wait40uSec:
-    push AR0
-    mov R0, #133
+    push AR6
+    mov R6, #133
 L0:
     nop
-    djnz R0, L0 ; 1+4 cycles->5*60.24ns*133=40us
-    pop AR0
+    djnz R6, L0 ; 1+4 cycles->5*60.24ns*133=40us
+    pop AR6
     ret
 
 ;---------------------------------;
-; Wait 'R2' milliseconds          ;
+; Wait 'R7' milliseconds          ;
 ;---------------------------------;
 Wait_Milli_Seconds mac
-	push AR2
-	mov R2, %0
+	push AR7
+	mov R7, %0
 	lcall ?Wait_Milli_Seconds
-	pop AR2
+	pop AR7
 endmac
 
 ;---------------------------------;
-; Wait 'R2' milliseconds          ;
+; Wait 'R7' milliseconds          ;
 ;---------------------------------;
 ?Wait_Milli_Seconds:
-    push AR0
-    push AR1
-L3: mov R1, #40
-L2: mov R0, #104
-L1: djnz R0, L1 ; 4 cycles->4*60.24ns*104=25.0us
-    djnz R1, L2 ; 25us*40=1.0ms
-    djnz R2, L3 ; number of millisecons to wait passed in R2
-    pop AR1
-    pop AR0
+    push AR6
+    push AR5
+L3: mov R5, #40
+L2: mov R6, #104
+L1: djnz R6, L1 ; 4 cycles->4*60.24ns*104=25.0us
+    djnz R5, L2 ; 25us*40=1.0ms
+    djnz R7, L3 ; number of millisecons to wait passed in R7
+    pop AR5
+    pop AR6
     ret
 
     	
@@ -172,22 +172,22 @@ endmac
 ; Display a BCD number in the LCD ;
 ;---------------------------------;
 Display_BCD mac
-	push ar0
-	mov r0, %0
+	push aR6
+	mov R6, %0
 	lcall ?Display_BCD
-	pop ar0
+	pop aR6
 endmac
 
 ?Display_BCD:
 	push acc
 	; Write most significant digit
-	mov a, r0
+	mov a, R6
 	swap a
 	anl a, #0fh
 	orl a, #30h
 	lcall ?WriteData
 	; write least significant digit
-	mov a, r0
+	mov a, R6
 	anl a, #0fh
 	orl a, #30h
 	lcall ?WriteData
@@ -208,16 +208,16 @@ endmac
 ; Display a 1 bit flag in the LCD ;
 ;---------------------------------;
 Display_Bit mac
-    push ar0
-    mov r0, %0
+    push aR6
+    mov R6, %0
     lcall ?Display_Bit
-    pop ar0
+    pop aR6
 endmac
 
 ?Display_Bit:
     push acc
     ; Isolate the least significant bit
-    mov a, r0
+    mov a, R6
     anl a, #01h  ; Mask all but the LSB
     jz  BitIsZero
     mov a, #'1'  ; ASCII for '1'

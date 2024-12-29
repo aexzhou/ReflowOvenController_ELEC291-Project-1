@@ -9,9 +9,10 @@ import sys
 import math
 import threading
 
+
 # Initialize serial connection
 ser = serial.Serial( 
-    port='COM5',  # Adjust as needed
+    port='COM7',  # Adjust as needed
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -57,22 +58,43 @@ def read_serial_data():
     t = 0
     while not shutdown_event.is_set():
         if ser.in_waiting > 0:
-            data = ser.read(9)
-            if len(data) == 9:
-                value, fsm_state, command = struct.unpack('<iBi', data)
-                outval = format(value/1000, '.3f')
+            data = ser.read(31)
+            if len(data) == 31:
+                temp_mc, temp_lm, tempc, temp_lm_c, oven_state, button_state, seconds, SoakTime, SoakTemp, ReflowTime, ReflowTemp, dout1, dout2, aindids, adccon0, adc1, adc2 = struct.unpack('<IIBBBBBBBBBIIBBHH', data)
+                # temp_mc = format(temp_mc, '.3f')
 
-                #tempcom = hex(command)
-                fsm_state_bin = bin(fsm_state)
+                #tempcom = hex(command
+                              
 
-                print(f"Temp: {outval:>8} | FSM State: {fsm_state:>4} = {fsm_state_bin:<10} | data_out[31:0]: {bin(command)}")
-                data_queue.put((t, float(outval)))
+                print(
+                    # f"THJ_raw:{temp_mc:>13} |",\
+                    # f"TCJ_raw:{(temp_lm):>13} |",\
+                    f"tempc:{int(tempc):>3} |",\
+                    f"temp_lm_c:{int(temp_lm_c):>3} |",\
+                    f"OvenS:{int(oven_state):>3} |",\
+                    f"ButS:{int(button_state):>3} |",\
+                    f"sec:{int(seconds):>3} |",\
+                    # f"Stime:{int(SoakTime):>3} |",\
+                    # f"Stemp:{int(SoakTemp):>3} |",\
+                    # f"Rtime:{int(ReflowTime):>3} |",\
+                    # f"Rtemp:{int(ReflowTemp):>3} |",\
+                    # f"d1(4): {int(dout1):>6} |",\
+                    # f"d2(4): {int(dout2):>6} |",\
+                    f"test1: {bin(aindids):>10} | ",\
+                    f"test2: {bin(adccon0):>10} | ",\
+                    f"adc1: {int(adc1):>4} |",\
+                    f"adc2: {int(adc2):>4} |",\
+    
+                    ) 
+                data_queue.put((t, float(tempc)))
                 t += 1
 
             else:
                 print("DATA FORMAT ERROR:", data)
         else:
             time.sleep(0.1)  
+
+
 
 # PLOTTING
 # xsize = 100
@@ -113,7 +135,7 @@ serial_thread.start()
 # except KeyboardInterrupt:
 #     print("User Interrupt")
 
-# tell thread to stop if it sees shutdown signal
+# # tell thread to stop if it sees shutdown signal
 # shutdown_event.set()
 # serial_thread.join()
 
